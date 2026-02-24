@@ -115,106 +115,108 @@ class RequestView(discord.ui.View):
     def __init__(self, author_id: int):
         super().__init__(timeout=None)
         self.author_id = author_id
-        self.accepted_by_id: int | None = None
-        self.size: str | None = None
-        self.rejected_by_id: int | None = None
+        self.accepted_by_id = None
+        self.size = None
+        self.rejected_by_id = None
 
     def lock_if_finished(self):
-        # блокируем кнопки после финала (можно оставить "Откат" активным)
         if self.accepted_by_id or self.rejected_by_id:
             for child in self.children:
                 if isinstance(child, discord.ui.Button):
-                    if child.custom_id in {"req_rollback"}:
+                    if child.custom_id == "req_rollback":
                         child.disabled = False
                     else:
                         child.disabled = True
 
-   async def accept_with_size(self, interaction: discord.Interaction, size: str):
-    import datetime
+    async def accept_with_size(self, interaction: discord.Interaction, size: str):
+        import datetime
 
-    self.accepted_by_id = interaction.user.id
-    self.size = size
-    self.rejected_by_id = None
+        self.accepted_by_id = interaction.user.id
+        self.size = size
+        self.rejected_by_id = None
 
-    msg = interaction.message
-    old = msg.embeds[0]
+        msg = interaction.message
+        old = msg.embeds[0]
 
-    new = discord.Embed(
-        title=old.title,
-        description=old.description,
-        color=discord.Color.green()
-    )
+        new = discord.Embed(
+            title=old.title,
+            description=old.description,
+            color=discord.Color.green()
+        )
 
-    for f in old.fields:
-        if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал", "Одобрил"}:
-            continue
+        for f in old.fields:
+            if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал", "Одобрил"}:
+                continue
 
-        if f.name == "Статус":
-            new.add_field(name="Статус", value="🟢 Принято", inline=True)
-        else:
-            new.add_field(name=f.name, value=f.value, inline=f.inline)
+            if f.name == "Статус":
+                new.add_field(name="Статус", value="🟢 Принято", inline=True)
+            else:
+                new.add_field(name=f.name, value=f.value, inline=f.inline)
 
-    new.add_field(name="✅ Принял", value=interaction.user.mention, inline=False)
-    new.add_field(name="👥 Количество", value=size, inline=False)
+        new.add_field(name="✅ Принял", value=interaction.user.mention, inline=False)
+        new.add_field(name="👥 Количество", value=size, inline=False)
 
-    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
+        now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
 
-    new.add_field(
-        name="Одобрил",
-        value=f"{interaction.user.mention} • {now}",
-        inline=False
-    )
+        new.add_field(
+            name="Одобрил",
+            value=f"{interaction.user.mention} • {now}",
+            inline=False
+        )
 
-    new.set_footer(text=old.footer.text if old.footer else "")
+        new.set_footer(text="Статус стрелы")
 
-    self.lock_if_finished()
+        self.lock_if_finished()
 
-    await msg.edit(embed=new, view=self)
+        await msg.edit(embed=new, view=self)
 
-    await interaction.response.send_message(
-        f"✅ Принято. Количество: {size}",
-        ephemeral=True
-    )
+        await interaction.response.send_message(
+            f"✅ Принято. Количество: {size}",
+            ephemeral=True
+        )
 
     @discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Открываем modal ввода количества
         await interaction.response.send_modal(SizeModal(self))
 
     @discord.ui.button(label="❌ Отказать", style=discord.ButtonStyle.danger, custom_id="req_reject")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+
         self.rejected_by_id = interaction.user.id
         self.accepted_by_id = None
         self.size = None
 
         msg = interaction.message
         old = msg.embeds[0]
-        new = discord.Embed(title=old.title, description=old.description, color=discord.Color.red())
+
+        new = discord.Embed(
+            title=old.title,
+            description=old.description,
+            color=discord.Color.red()
+        )
 
         for f in old.fields:
             if f.name in {"✅ Принял", "👥 Количество"}:
                 continue
+
             if f.name == "Статус":
                 new.add_field(name="Статус", value="🔴 Отказано", inline=True)
             else:
                 new.add_field(name=f.name, value=f.value, inline=f.inline)
 
         new.add_field(name="❌ Отказал", value=interaction.user.mention, inline=False)
-        new.set_footer(text=old.footer.text if old.footer else "")
 
         self.lock_if_finished()
+
         await msg.edit(embed=new, view=self)
-        await interaction.response.send_message("❌ Отказано.", ephemeral=True)
+
+        await interaction.response.send_message(
+            "❌ Отказано.",
+            ephemeral=True
+        )
 
     @discord.ui.button(label="↩️ Откат", style=discord.ButtonStyle.secondary, custom_id="req_rollback")
     async def rollback(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Чтобы не было злоупотребления: откат может делать автор или тот, кто принял/отказал
-        allowed = {self.author_id, self.accepted_by_id, self.rejected_by_id}
-        allowed.discard(None)
-
-        if interaction.user.id not in allowed:
-            await interaction.response.send_message("❌ Откат может сделать только автор или принявший/отказавший.", ephemeral=True)
-            return
 
         self.accepted_by_id = None
         self.rejected_by_id = None
@@ -222,27 +224,32 @@ class RequestView(discord.ui.View):
 
         msg = interaction.message
         old = msg.embeds[0]
-        # Возврат в “ожидание”
-        new = discord.Embed(title=old.title, description=old.description, color=discord.Color.orange())
 
-        # пересоберём поля: Автор/Статус, уберём служебные
+        new = discord.Embed(
+            title=old.title,
+            description=old.description,
+            color=discord.Color.orange()
+        )
+
         for f in old.fields:
-            if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал"}:
+            if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал", "Одобрил"}:
                 continue
+
             if f.name == "Статус":
                 new.add_field(name="Статус", value="🟠 Ожидает ответа", inline=True)
             else:
                 new.add_field(name=f.name, value=f.value, inline=f.inline)
 
-        new.set_footer(text=old.footer.text if old.footer else "")
-
-        # разблокируем кнопки
         for child in self.children:
             if isinstance(child, discord.ui.Button):
                 child.disabled = False
 
         await msg.edit(embed=new, view=self)
-        await interaction.response.send_message("↩️ Откат выполнен.", ephemeral=True)
+
+        await interaction.response.send_message(
+            "↩️ Откат выполнен.",
+            ephemeral=True
+        )
 
 
 # ====== КОМАНДА СОЗДАНИЯ ЗАЯВКИ ======
