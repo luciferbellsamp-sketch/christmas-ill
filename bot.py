@@ -129,61 +129,52 @@ class RequestView(discord.ui.View):
                     else:
                         child.disabled = True
 
-    async def accept_with_size(self, interaction: discord.Interaction, size: str):
-        self.accepted_by_id = interaction.user.id
-        self.size = size
-        self.rejected_by_id = None
+   async def accept_with_size(self, interaction: discord.Interaction, size: str):
+    import datetime
 
-        # обновляем embed
-        msg = interaction.message
-        old = msg.embeds[0]
+    self.accepted_by_id = interaction.user.id
+    self.size = size
+    self.rejected_by_id = None
 
-        # Достанем “шапочные” данные обратно из embed.description
-        # (в реале лучше хранить в message.content/json, но для простоты берём оттуда)
-        # Тут просто меняем цвет/поля
-        # Пересобираем новый embed на базе старого
+    msg = interaction.message
+    old = msg.embeds[0]
 
-new = discord.Embed(
-    title=old.title,
-    description=old.description,
-    color=discord.Color.green()
-)
+    new = discord.Embed(
+        title=old.title,
+        description=old.description,
+        color=discord.Color.green()
+    )
 
-# перенос старых полей
-for f in old.fields:
-    if f.name in {"✅ Принял", "👥 Количество"}:
-        continue
-    if f.name == "Статус":
-        new.add_field(name="Статус", value="🟢 Принято", inline=True)
-    else:
-        new.add_field(name=f.name, value=f.value, inline=f.inline)
+    for f in old.fields:
+        if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал", "Одобрил"}:
+            continue
 
-# добавляем кто принял
-new.add_field(
-    name="✅ Принял",
-    value=interaction.user.mention,
-    inline=False
-)
+        if f.name == "Статус":
+            new.add_field(name="Статус", value="🟢 Принято", inline=True)
+        else:
+            new.add_field(name=f.name, value=f.value, inline=f.inline)
 
-# добавляем количество
-new.add_field(
-    name="👥 Количество",
-    value=size,
-    inline=False
-)
+    new.add_field(name="✅ Принял", value=interaction.user.mention, inline=False)
+    new.add_field(name="👥 Количество", value=size, inline=False)
 
-# время принятия
-now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
+    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
 
-# footer как на твоём скрине
-new.set_footer(
-    text=f"Одобрил: {interaction.user.display_name} • {now}",
-    icon_url=interaction.user.display_avatar.url
-)
+    new.add_field(
+        name="Одобрил",
+        value=f"{interaction.user.mention} • {now}",
+        inline=False
+    )
 
-        self.lock_if_finished()
-        await msg.edit(embed=new, view=self)
-        await interaction.response.send_message(f"✅ Принято. Количество: **{size}**", ephemeral=True)
+    new.set_footer(text=old.footer.text if old.footer else "")
+
+    self.lock_if_finished()
+
+    await msg.edit(embed=new, view=self)
+
+    await interaction.response.send_message(
+        f"✅ Принято. Количество: {size}",
+        ephemeral=True
+    )
 
     @discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
