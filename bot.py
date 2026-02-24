@@ -232,21 +232,21 @@ class RequestView(discord.ui.View):
 # ====== КОМАНДА СОЗДАНИЯ ЗАЯВКИ ======
 @bot.tree.command(name="strela", description="Создать забив стрелы (заявка + кнопки)")
 @app_commands.describe(
-    tag="Тег твоей фракции (кто забивает): lcn/rm/trb/yakuza/warlock ...",
-    protiv="Тег фракции соперника (кому забивают): lcn/rm/trb/yakuza/warlock ...",
-    vremya="Время (как напишешь)",
+    tag="Тег твоей фракции (кто забив): lcn/rm/trb/yakuza/warlock ...",
+    protiv="Тег фракции соперника (кому забив): lcn/rm/trb/yakuza/warlock ...",
+    biz="Бизнес/объект (id бизнеса)",
+    vremya="Время (xx:xx)",
     oruzhie="Оружие (как напишешь)",
     lokaciya="Локация (как напишешь)",
-    biz="Бизнес/объект (необязательно)",
 )
 async def strela(
     interaction: discord.Interaction,
     tag: str,
     protiv: str,
+    biz: str,
     vremya: str,
     oruzhie: str,
     lokaciya: str,
-    biz: str | None = None,
 ):
     ping_from = build_ping_text(tag)
     ping_to = build_ping_text(protiv)
