@@ -141,20 +141,45 @@ class RequestView(discord.ui.View):
         # (в реале лучше хранить в message.content/json, но для простоты берём оттуда)
         # Тут просто меняем цвет/поля
         # Пересобираем новый embed на базе старого
-        new = discord.Embed(title=old.title, description=old.description, color=discord.Color.green())
+      import datetime
 
-        # Переносим поля кроме служебных, затем добавляем “Принял/Количество”
-        for f in old.fields:
-            if f.name in {"✅ Принял", "👥 Количество"}:
-                continue
-            if f.name == "Статус":
-                new.add_field(name="Статус", value="🟢 Принято", inline=True)
-            else:
-                new.add_field(name=f.name, value=f.value, inline=f.inline)
+new = discord.Embed(
+    title=old.title,
+    description=old.description,
+    color=discord.Color.green()
+)
 
-        new.add_field(name="✅ Принял", value=interaction.user.mention, inline=False)
-        new.add_field(name="👥 Количество", value=size, inline=False)
-        new.set_footer(text=old.footer.text if old.footer else "")
+# перенос старых полей
+for f in old.fields:
+    if f.name in {"✅ Принял", "👥 Количество"}:
+        continue
+    if f.name == "Статус":
+        new.add_field(name="Статус", value="🟢 Принято", inline=True)
+    else:
+        new.add_field(name=f.name, value=f.value, inline=f.inline)
+
+# добавляем кто принял
+new.add_field(
+    name="✅ Принял",
+    value=interaction.user.mention,
+    inline=False
+)
+
+# добавляем количество
+new.add_field(
+    name="👥 Количество",
+    value=size,
+    inline=False
+)
+
+# время принятия
+now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
+
+# footer как на твоём скрине
+new.set_footer(
+    text=f"Одобрил: {interaction.user.display_name} • {now}",
+    icon_url=interaction.user.display_avatar.url
+)
 
         self.lock_if_finished()
         await msg.edit(embed=new, view=self)
