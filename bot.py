@@ -1,6 +1,7 @@
 import os
 import re
 import discord
+import datetime
 from discord.ext import commands
 from discord import app_commands
 
@@ -141,7 +142,6 @@ class RequestView(discord.ui.View):
         # (в реале лучше хранить в message.content/json, но для простоты берём оттуда)
         # Тут просто меняем цвет/поля
         # Пересобираем новый embed на базе старого
-      import datetime
 
 new = discord.Embed(
     title=old.title,
