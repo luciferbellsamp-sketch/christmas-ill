@@ -7,7 +7,7 @@ from discord import app_commands
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ====== НАСТРОЙКИ ПИНГОВ ПО ТЕГАМ ======
+# ====== НАСТРОЙКИ ПИНГОВ 11ПО ТЕГАМ ======
 # ВСТАВЬ СЮДА ID РОЛЕЙ (ПКМ по роли -> Copy Role ID, включи Developer Mode в Discord)
 TAG_ROLE_PINGS = {
     # TRB
