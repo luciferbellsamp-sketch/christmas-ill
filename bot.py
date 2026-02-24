@@ -8,6 +8,7 @@ intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ====== НАСТРОЙКИ ПИНГОВ ПО ТЕГАМ ======
+# ВСТАВЬ СЮДА ID РОЛЕЙ (ПКМ по роли -> Copy Role ID, включи Developer Mode в Discord)
 TAG_ROLE_PINGS = {
     # TRB
     "trb": [1475926501194072259],
@@ -60,6 +61,7 @@ def format_request_embed(
         description=""
     )
 
+    # Верхняя часть “как в твоём окне”
     lines = []
     lines.append(f"**Забиваю стрелу {tag.upper()} против {protiv}**")
     if biz:
@@ -80,7 +82,6 @@ def format_request_embed(
     e.set_footer(text="Кнопки ниже: принять / отказать / откат")
     return e
 
-
 # ====== MODAL ДЛЯ ВВОДА КОЛИЧЕСТВА ======
 class SizeModal(discord.ui.Modal, title="Принять стрелу: количество"):
     size = discord.ui.TextInput(
@@ -96,6 +97,7 @@ class SizeModal(discord.ui.Modal, title="Принять стрелу: колич
 
     async def on_submit(self, interaction: discord.Interaction):
         val = normalize_tag(str(self.size.value))
+        # привести к виду 3x3 (на случай русской х)
         val = val.replace("х", "x")
 
         if val not in ALLOWED_SIZES:
@@ -107,7 +109,6 @@ class SizeModal(discord.ui.Modal, title="Принять стрелу: колич
 
         await self.parent_view.accept_with_size(interaction, val)
 
-
 # ====== VIEW С КНОПКАМИ ======
 class RequestView(discord.ui.View):
     def __init__(self, author_id: int):
@@ -118,6 +119,7 @@ class RequestView(discord.ui.View):
         self.rejected_by_id: int | None = None
 
     def lock_if_finished(self):
+        # блокируем кнопки после финала (можно оставить "Откат" активным)
         if self.accepted_by_id or self.rejected_by_id:
             for child in self.children:
                 if isinstance(child, discord.ui.Button):
@@ -131,15 +133,17 @@ class RequestView(discord.ui.View):
         self.size = size
         self.rejected_by_id = None
 
+        # обновляем embed
         msg = interaction.message
         old = msg.embeds[0]
 
-        new = discord.Embed(
-            title=old.title,
-            description=old.description,
-            color=discord.Color.green()
-        )
+        # Достанем “шапочные” данные обратно из embed.description
+        # (в реале лучше хранить в message.content/json, но для простоты берём оттуда)
+        # Тут просто меняем цвет/поля
+        # Пересобираем новый embed на базе старого
+        new = discord.Embed(title=old.title, description=old.description, color=discord.Color.green())
 
+        # Переносим поля кроме служебных, затем добавляем “Принял/Количество”
         for f in old.fields:
             if f.name in {"✅ Принял", "👥 Количество"}:
                 continue
@@ -150,36 +154,26 @@ class RequestView(discord.ui.View):
 
         new.add_field(name="✅ Принял", value=interaction.user.mention, inline=False)
         new.add_field(name="👥 Количество", value=size, inline=False)
-
         new.set_footer(text=old.footer.text if old.footer else "")
 
         self.lock_if_finished()
         await msg.edit(embed=new, view=self)
-
-        await interaction.response.send_message(
-            f"✅ Принято. Количество: **{size}**",
-            ephemeral=True
-        )
+        await interaction.response.send_message(f"✅ Принято. Количество: **{size}**", ephemeral=True)
 
     @discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Открываем modal ввода количества
         await interaction.response.send_modal(SizeModal(self))
 
     @discord.ui.button(label="❌ Отказать", style=discord.ButtonStyle.danger, custom_id="req_reject")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-
         self.rejected_by_id = interaction.user.id
         self.accepted_by_id = None
         self.size = None
 
         msg = interaction.message
         old = msg.embeds[0]
-
-        new = discord.Embed(
-            title=old.title,
-            description=old.description,
-            color=discord.Color.red()
-        )
+        new = discord.Embed(title=old.title, description=old.description, color=discord.Color.red())
 
         for f in old.fields:
             if f.name in {"✅ Принял", "👥 Количество"}:
@@ -190,27 +184,60 @@ class RequestView(discord.ui.View):
                 new.add_field(name=f.name, value=f.value, inline=f.inline)
 
         new.add_field(name="❌ Отказал", value=interaction.user.mention, inline=False)
-
         new.set_footer(text=old.footer.text if old.footer else "")
 
         self.lock_if_finished()
         await msg.edit(embed=new, view=self)
+        await interaction.response.send_message("❌ Отказано.", ephemeral=True)
 
-        await interaction.response.send_message(
-            "❌ Отказано.",
-            ephemeral=True
-        )
+    @discord.ui.button(label="↩️ Откат", style=discord.ButtonStyle.secondary, custom_id="req_rollback")
+    async def rollback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Чтобы не было злоупотребления: откат может делать автор или тот, кто принял/отказал
+        allowed = {self.author_id, self.accepted_by_id, self.rejected_by_id}
+        allowed.discard(None)
+
+        if interaction.user.id not in allowed:
+            await interaction.response.send_message("❌ Откат может сделать только автор или принявший/отказавший.", ephemeral=True)
+            return
+
+        self.accepted_by_id = None
+        self.rejected_by_id = None
+        self.size = None
+
+        msg = interaction.message
+        old = msg.embeds[0]
+        # Возврат в “ожидание”
+        new = discord.Embed(title=old.title, description=old.description, color=discord.Color.orange())
+
+        # пересоберём поля: Автор/Статус, уберём служебные
+        for f in old.fields:
+            if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал"}:
+                continue
+            if f.name == "Статус":
+                new.add_field(name="Статус", value="🟠 Ожидает ответа", inline=True)
+            else:
+                new.add_field(name=f.name, value=f.value, inline=f.inline)
+
+        new.set_footer(text=old.footer.text if old.footer else "")
+
+        # разблокируем кнопки
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                child.disabled = False
+
+        await msg.edit(embed=new, view=self)
+        await interaction.response.send_message("↩️ Откат выполнен.", ephemeral=True)
 
 
-# ====== КОМАНДА СОЗДАНИЯ ======
-@bot.tree.command(name="strela", description="Создать забив стрелы")
+# ====== КОМАНДА СОЗДАНИЯ ЗАЯВКИ ======
+@bot.tree.command(name="strela", description="Создать забив стрелы (заявка + кнопки)")
 @app_commands.describe(
-    tag="Кто забивает",
-    protiv="Кому забивают",
-    biz="Бизнес",
-    vremya="Время",
-    oruzhie="Оружие",
-    lokaciya="Локация",
+    tag="Тег твоей фракции (кто забив): lcn/rm/trb/yakuza/warlock ...",
+    protiv="Тег фракции соперника (кому забив): lcn/rm/trb/yakuza/warlock ...",
+    biz="Бизнес/объект (id бизнеса)",
+    vremya="Время (xx:xx)",
+    oruzhie="Оружие (как напишешь)",
+    lokaciya="Локация (как напишешь)",
 )
 async def strela(
     interaction: discord.Interaction,
@@ -221,10 +248,10 @@ async def strela(
     oruzhie: str,
     lokaciya: str,
 ):
-
     ping_from = build_ping_text(tag)
     ping_to = build_ping_text(protiv)
 
+    # пингуем обе стороны (и убираем лишние пробелы)
     content = " ".join(x for x in [ping_from, ping_to] if x).strip()
 
     embed = format_request_embed(
@@ -235,28 +262,16 @@ async def strela(
         lokaciya=lokaciya,
         oruzhie=oruzhie,
         biz=biz,
+        status="🟠 Ожидает ответа",
     )
 
-    embed.add_field(
-        name="Кому",
-        value=(ping_to if ping_to else protiv),
-        inline=False
-    )
+    # Добавим явное поле "Кому" (чтобы в эмбеде было видно, кому забивают)
+    embed.add_field(name="Кому", value=(ping_to if ping_to else komu_tag), inline=False)
 
     view = RequestView(author_id=interaction.user.id)
+    allowed = discord.AllowedMentions(roles=True, users=True, everyone=False)
 
-    allowed = discord.AllowedMentions(
-        roles=True,
-        users=True,
-        everyone=False
-    )
-
-    await interaction.response.send_message(
-        content=content,
-        embed=embed,
-        view=view,
-        allowed_mentions=allowed
-    )
+    await interaction.response.send_message(content=content, embed=embed, view=view, allowed_mentions=allowed)
 
 
 @bot.event
