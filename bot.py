@@ -1,8 +1,11 @@
 import os
+
 import re
 import discord
 from discord.ext import commands
 from discord import app_commands
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -152,7 +155,13 @@ class RequestView(discord.ui.View):
             else:
                 new.add_field(name=f.name, value=f.value, inline=f.inline)
 
-        new.add_field(name="✅ Принял", value=interaction.user.mention, inline=False)
+        msk_time = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
+
+new.add_field(
+    name="✅ Принял",
+    value=f"{interaction.user.mention} ({msk_time} МСК)",
+    inline=False
+)
         new.add_field(name="👥 Количество", value=size, inline=False)
         new.set_footer(text=old.footer.text if old.footer else "")
 
