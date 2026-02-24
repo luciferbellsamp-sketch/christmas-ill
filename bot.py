@@ -264,9 +264,18 @@ class RequestView(discord.ui.View):
 
 
 # ===== COMMAND =====
-@bot.tree.command(name="strela")
+
+@bot.tree.command(name="strela", description="Создать забив стрелы (заявка + кнопки)")
+@app_commands.describe(
+    tag="Тег твоей фракции (кто забив): lcn/rm/trb/yakuza/warlock",
+    protiv="Тег фракции соперника (кому забив): lcn/rm/trb/yakuza/warlock",
+    biz="Бизнес / объект (ID бизнеса)",
+    vremya="Время проведения (например: 23:40)",
+    oruzhie="Оружие (например: дигл, шот, рифла)",
+    lokaciya="Локация (например: каменка)",
+)
 async def strela(
-    interaction,
+    interaction: discord.Interaction,
     tag: str,
     protiv: str,
     biz: str,
@@ -278,25 +287,38 @@ async def strela(
     ping_from = build_ping_text(tag)
     ping_to = build_ping_text(protiv)
 
-    content = f"{ping_from} {ping_to}"
+    content = " ".join(x for x in [ping_from, ping_to] if x).strip()
 
     embed = format_request_embed(
-        interaction.user,
-        tag,
-        protiv,
-        vremya,
-        lokaciya,
-        oruzhie,
-        biz,
+        author=interaction.user,
+        tag=tag,
+        protiv=protiv,
+        vremya=vremya,
+        lokaciya=lokaciya,
+        oruzhie=oruzhie,
+        biz=biz,
+        status="🟠 Ожидает ответа",
     )
 
-    view = RequestView(interaction.user.id)
+    embed.add_field(
+        name="Кому",
+        value=(ping_to if ping_to else protiv.upper()),
+        inline=False
+    )
+
+    view = RequestView(author_id=interaction.user.id)
+
+    allowed = discord.AllowedMentions(
+        roles=True,
+        users=True,
+        everyone=False
+    )
 
     await interaction.response.send_message(
         content=content,
         embed=embed,
         view=view,
-        allowed_mentions=discord.AllowedMentions(roles=True)
+        allowed_mentions=allowed
     )
 
 
