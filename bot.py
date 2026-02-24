@@ -116,21 +116,20 @@ class RequestView(discord.ui.View):
     def __init__(self, author_id: int):
         super().__init__(timeout=None)
         self.author_id = author_id
-        self.accepted_by_id: int | None = None
-        self.size: str | None = None
-        self.rejected_by_id: int | None = None
+        self.accepted_by_id = None
+        self.size = None
+        self.rejected_by_id = None
 
     def lock_if_finished(self):
-        # блокируем кнопки после финала (можно оставить "Откат" активным)
         if self.accepted_by_id or self.rejected_by_id:
             for child in self.children:
                 if isinstance(child, discord.ui.Button):
-                    if child.custom_id in {"req_rollback"}:
+                    if child.custom_id == "req_rollback":
                         child.disabled = False
                     else:
                         child.disabled = True
 
-       async def accept_with_size(self, interaction: discord.Interaction, size: str):
+    async def accept_with_size(self, interaction: discord.Interaction, size: str):
         from datetime import datetime
         from zoneinfo import ZoneInfo
 
@@ -138,38 +137,41 @@ class RequestView(discord.ui.View):
         self.size = size
         self.rejected_by_id = None
 
-        # получаем время МСК
+        # время МСК
         msk_time = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
 
-        # обновляем embed
         msg = interaction.message
         old = msg.embeds[0]
 
-        # создаём новый embed
         new = discord.Embed(
             title=old.title,
             description=old.description,
             color=discord.Color.green()
         )
 
-        # переносим все поля кроме служебных
         for f in old.fields:
             if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал"}:
                 continue
 
             if f.name == "Статус":
-                new.add_field(name="Статус", value="🟢 Принято", inline=True)
+                new.add_field(
+                    name="Статус",
+                    value="🟢 Принято",
+                    inline=True
+                )
             else:
-                new.add_field(name=f.name, value=f.value, inline=f.inline)
+                new.add_field(
+                    name=f.name,
+                    value=f.value,
+                    inline=f.inline
+                )
 
-        # добавляем кто принял + время МСК
         new.add_field(
             name="✅ Принял",
             value=f"{interaction.user.mention} ({msk_time} МСК)",
             inline=False
         )
 
-        # добавляем количество
         new.add_field(
             name="👥 Количество",
             value=size,
@@ -183,7 +185,66 @@ class RequestView(discord.ui.View):
         await msg.edit(embed=new, view=self)
 
         await interaction.response.send_message(
-            f"✅ Принято. Количество: **{size}**",
+            f"✅ Принято. Количество: {size}",
+            ephemeral=True
+        )
+
+    @discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(SizeModal(self))
+
+    @discord.ui.button(label="❌ Отказать", style=discord.ButtonStyle.danger, custom_id="req_reject")
+    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        msk_time = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
+
+        self.rejected_by_id = interaction.user.id
+        self.accepted_by_id = None
+        self.size = None
+
+        msg = interaction.message
+        old = msg.embeds[0]
+
+        new = discord.Embed(
+            title=old.title,
+            description=old.description,
+            color=discord.Color.red()
+        )
+
+        for f in old.fields:
+            if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал"}:
+                continue
+
+            if f.name == "Статус":
+                new.add_field(
+                    name="Статус",
+                    value="🔴 Отказано",
+                    inline=True
+                )
+            else:
+                new.add_field(
+                    name=f.name,
+                    value=f.value,
+                    inline=f.inline
+                )
+
+        new.add_field(
+            name="❌ Отказал",
+            value=f"{interaction.user.mention} ({msk_time} МСК)",
+            inline=False
+        )
+
+        new.set_footer(text=old.footer.text if old.footer else "")
+
+        self.lock_if_finished()
+
+        await msg.edit(embed=new, view=self)
+
+        await interaction.response.send_message(
+            "❌ Отказано.",
             ephemeral=True
         )
 
