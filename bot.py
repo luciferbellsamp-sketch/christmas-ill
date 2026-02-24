@@ -243,7 +243,6 @@ class RequestView(discord.ui.View):
 async def strela(
     interaction: discord.Interaction,
     tag: str,
-    komu_tag: str,
     protiv: str,
     vremya: str,
     oruzhie: str,
@@ -251,7 +250,7 @@ async def strela(
     biz: str | None = None,
 ):
     ping_from = build_ping_text(tag)
-    ping_to = build_ping_text(komu_tag)
+   ping_to = build_ping_text(protiv)
 
     # пингуем обе стороны (и убираем лишние пробелы)
     content = " ".join(x for x in [ping_from, ping_to] if x).strip()
