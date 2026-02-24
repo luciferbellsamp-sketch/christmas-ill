@@ -33,7 +33,6 @@ TAG_ROLE_PINGS = {
     "russian mafia": [1475926293257261277],
     "русская мафия": [1475926293257261277],
 }
-
 ALLOWED_SIZES = {"2x2", "3x3", "4x4", "5x5"}
 
 def normalize_tag(text: str) -> str:
@@ -227,6 +226,101 @@ class RequestView(discord.ui.View):
 
         await msg.edit(embed=new, view=self)
         await interaction.response.send_message("↩️ Откат выполнен.", ephemeral=True)
+        # ====== MODAL ДЛЯ СОЗДАНИЯ СТРЕЛЫ (ПАНЕЛЬ) ======
+
+class CreateStrelaModal(discord.ui.Modal, title="Создать забив стрелы"):
+    tag = discord.ui.TextInput(
+        label="Твоя фракция (tag: lcn/rm/trb/yakuza/warlock)",
+        placeholder="Например: lcn",
+        required=True,
+        max_length=30,
+    )
+    protiv = discord.ui.TextInput(
+        label="Фракция соперника (tag: lcn/rm/trb/yakuza/warlock)",
+        placeholder="Например: rm",
+        required=True,
+        max_length=30,
+    )
+    biz = discord.ui.TextInput(
+        label="Бизнес/объект (id или текст)",
+        placeholder="Например: 281",
+        required=False,
+        max_length=50,
+    )
+    vremya = discord.ui.TextInput(
+        label="Время проведения (как напишешь)",
+        placeholder="Например: 18:40 05.02.2026",
+        required=True,
+        max_length=50,
+    )
+    oruzhie = discord.ui.TextInput(
+        label="Оружие",
+        placeholder="Например: дигл / шот / рифла",
+        required=True,
+        max_length=50,
+    )
+    lokaciya = discord.ui.TextInput(
+        label="Локация",
+        placeholder="Например: каменка",
+        required=True,
+        max_length=50,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        tag_val = str(self.tag.value).strip()
+        protiv_val = str(self.protiv.value).strip()
+        biz_val = str(self.biz.value).strip() if self.biz.value else None
+        vremya_val = str(self.vremya.value).strip()
+        oruzhie_val = str(self.oruzhie.value).strip()
+        lokaciya_val = str(self.lokaciya.value).strip()
+
+        ping_from = build_ping_text(tag_val)
+        ping_to = build_ping_text(protiv_val)
+        content = " ".join(x for x in [ping_from, ping_to] if x).strip()
+
+        embed = format_request_embed(
+            author=interaction.user,
+            tag=tag_val,
+            protiv=protiv_val,
+            vremya=vremya_val,
+            lokaciya=lokaciya_val,
+            oruzhie=oruzhie_val,
+            biz=biz_val,
+            status="🟠 Ожидает ответа",
+        )
+
+        embed.add_field(name="Кому", value=(ping_to if ping_to else protiv_val), inline=False)
+
+        view = RequestView(author_id=interaction.user.id)
+        allowed = discord.AllowedMentions(roles=True, users=True, everyone=False)
+
+        await interaction.response.send_message(
+            content=content,
+            embed=embed,
+            view=view,
+            allowed_mentions=allowed
+        )
+
+
+# ====== VIEW ПАНЕЛИ ======
+class PanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="➕ Создать стрелу", style=discord.ButtonStyle.primary, custom_id="panel_create_strela")
+    async def create_strela(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(CreateStrelaModal())
+
+
+# ====== КОМАНДА ДЛЯ ОТПРАВКИ ПАНЕЛИ В КАНАЛ ======
+@bot.tree.command(name="panel", description="Отправить панель создания стрелы (кнопка)")
+async def panel(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="📌 Панель стрел",
+        description="Нажми кнопку ниже, чтобы создать забив стрелы.",
+        color=discord.Color.blurple()
+    )
+    await interaction.response.send_message(embed=embed, view=PanelView())
 
 
 # ====== КОМАНДА СОЗДАНИЯ ЗАЯВКИ ======
@@ -276,6 +370,8 @@ async def strela(
 
 @bot.event
 async def on_ready():
+    bot.add_view(PanelView())   # важно для кнопки после рестарта
+    bot.add_view(RequestView(author_id=0))  # можно не обязательно, но пусть будет
     await bot.tree.sync()
     print(f"Бот запущен как {bot.user}")
 
