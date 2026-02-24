@@ -1,11 +1,8 @@
 import os
-
 import re
 import discord
 from discord.ext import commands
 from discord import app_commands
-from datetime import datetime
-from zoneinfo import ZoneInfo
 
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -117,61 +114,45 @@ class RequestView(discord.ui.View):
     def __init__(self, author_id: int):
         super().__init__(timeout=None)
         self.author_id = author_id
-        self.accepted_by_id = None
-        self.size = None
-        self.rejected_by_id = None
+        self.accepted_by_id: int | None = None
+        self.size: str | None = None
+        self.rejected_by_id: int | None = None
+
+    def lock_if_finished(self):
+        # блокируем кнопки после финала (можно оставить "Откат" активным)
+        if self.accepted_by_id or self.rejected_by_id:
+            for child in self.children:
+                if isinstance(child, discord.ui.Button):
+                    if child.custom_id in {"req_rollback"}:
+                        child.disabled = False
+                    else:
+                        child.disabled = True
 
     async def accept_with_size(self, interaction: discord.Interaction, size: str):
         self.accepted_by_id = interaction.user.id
         self.size = size
         self.rejected_by_id = None
 
+        # обновляем embed
         msg = interaction.message
         old = msg.embeds[0]
 
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
+        # Достанем “шапочные” данные обратно из embed.description
+        # (в реале лучше хранить в message.content/json, но для простоты берём оттуда)
+        # Тут просто меняем цвет/поля
+        # Пересобираем новый embed на базе старого
+        new = discord.Embed(title=old.title, description=old.description, color=discord.Color.green())
 
-        now_msk = datetime.now(ZoneInfo("Europe/Moscow"))
-        time_str = now_msk.strftime("%d.%m.%Y %H:%M")
-
-        new = discord.Embed(
-            title=old.title,
-            description=old.description,
-            color=discord.Color.green()
-        )
-
+        # Переносим поля кроме служебных, затем добавляем “Принял/Количество”
         for f in old.fields:
-            if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал"}:
+            if f.name in {"✅ Принял", "👥 Количество"}:
                 continue
-
             if f.name == "Статус":
                 new.add_field(name="Статус", value="🟢 Принято", inline=True)
             else:
                 new.add_field(name=f.name, value=f.value, inline=f.inline)
 
-        new.add_field(
-            name="✅ Принял",
-            value=f"{interaction.user.mention} ({time_str} МСК)",
-            inline=False
-        )
-
-        new.add_field(
-            name="👥 Количество",
-            value=size,
-            inline=False
-        )
-
-        new.set_footer(text=old.footer.text if old.footer else "")
-
-        self.lock_if_finished()
-
-        await msg.edit(embed=new, view=self)
-
-        await interaction.response.send_message(
-            f"✅ Принято в {time_str} МСК",
-            ephemeral=True
-        )
+        new.add_field(name="✅ Принял", value=interaction.user.mention, inline=False)
         new.add_field(name="👥 Количество", value=size, inline=False)
         new.set_footer(text=old.footer.text if old.footer else "")
 
