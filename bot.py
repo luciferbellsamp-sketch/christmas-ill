@@ -233,8 +233,7 @@ class RequestView(discord.ui.View):
 @bot.tree.command(name="strela", description="Создать забив стрелы (заявка + кнопки)")
 @app_commands.describe(
     tag="Тег твоей фракции (кто забивает): lcn/rm/trb/yakuza/warlock ...",
-    komu_tag="Тег фракции соперника (кому забивают): lcn/rm/trb/yakuza/warlock ...",
-    protiv="Против кого (текстом, например WMC или ник/фамилия)",
+    protiv="Тег фракции соперника (кому забивают): lcn/rm/trb/yakuza/warlock ...",
     vremya="Время (как напишешь)",
     oruzhie="Оружие (как напишешь)",
     lokaciya="Локация (как напишешь)",
