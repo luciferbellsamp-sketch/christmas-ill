@@ -232,8 +232,9 @@ class RequestView(discord.ui.View):
 # ====== КОМАНДА СОЗДАНИЯ ЗАЯВКИ ======
 @bot.tree.command(name="strela", description="Создать забив стрелы (заявка + кнопки)")
 @app_commands.describe(
-    tag="Тег фракции (например: lcn / лкн) — по нему бот пингует роли лидера/зама",
-    protiv="Против кого",
+    tag="Тег твоей фракции (кто забивает): lcn/rm/trb/yakuza/warlock ...",
+    komu_tag="Тег фракции соперника (кому забивают): lcn/rm/trb/yakuza/warlock ...",
+    protiv="Против кого (текстом, например WMC или ник/фамилия)",
     vremya="Время (как напишешь)",
     oruzhie="Оружие (как напишешь)",
     lokaciya="Локация (как напишешь)",
@@ -242,13 +243,18 @@ class RequestView(discord.ui.View):
 async def strela(
     interaction: discord.Interaction,
     tag: str,
+    komu_tag: str,
     protiv: str,
     vremya: str,
     oruzhie: str,
     lokaciya: str,
     biz: str | None = None,
 ):
-    ping_text = build_ping_text(tag)
+    ping_from = build_ping_text(tag)
+    ping_to = build_ping_text(komu_tag)
+
+    # пингуем обе стороны (и убираем лишние пробелы)
+    content = " ".join(x for x in [ping_from, ping_to] if x).strip()
 
     embed = format_request_embed(
         author=interaction.user,
@@ -261,12 +267,11 @@ async def strela(
         status="🟠 Ожидает ответа",
     )
 
+    # Добавим явное поле "Кому" (чтобы в эмбеде было видно, кому забивают)
+    embed.add_field(name="Кому", value=(ping_to if ping_to else komu_tag), inline=False)
+
     view = RequestView(author_id=interaction.user.id)
-
     allowed = discord.AllowedMentions(roles=True, users=True, everyone=False)
-
-    # Текст сообщения — чтобы пингануло лидера/зама по тегу
-    content = ping_text if ping_text else ""
 
     await interaction.response.send_message(content=content, embed=embed, view=view, allowed_mentions=allowed)
 
