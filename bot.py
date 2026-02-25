@@ -10,6 +10,94 @@ from zoneinfo import ZoneInfo
 
 import asyncio
 
+def parse_strela_time(vremya_text: str) -> datetime:
+    """
+    Принимает:
+    - "21:10"
+    - "25.02.2026 21:10"
+    - "21:10 25.02.2026"
+    Возвращает datetime в TZ Europe/Moscow.
+    """
+    tz = ZoneInfo("Europe/Moscow")
+    s = vremya_text.strip()
+
+    fmts = ["%d.%m.%Y %H:%M", "%H:%M %d.%m.%Y", "%H:%M"]
+    for fmt in fmts:
+        try:
+            dt = datetime.strptime(s, fmt)
+            now = datetime.now(tz)
+
+            if fmt == "%H:%M":
+                # если только время — считаем сегодня по МСК, если уже прошло — завтра
+                dt = dt.replace(year=now.year, month=now.month, day=now.day)
+                dt = dt.replace(tzinfo=tz)
+                if dt <= now:
+                    dt = dt.replace(day=dt.day) + timedelta(days=1)  # завтра
+                return dt
+
+            # есть дата
+            return dt.replace(tzinfo=tz)
+        except ValueError:
+            pass
+
+    raise ValueError("Неверный формат времени. Пример: 21:10 или 25.02.2026 21:10")
+
+
+def format_delta(dt_target: datetime) -> str:
+    tz = ZoneInfo("Europe/Moscow")
+    now = datetime.now(tz)
+    diff = dt_target - now
+    sec = int(diff.total_seconds())
+
+    if sec <= 0:
+        return "✅ Уже началось / прошло"
+
+    days = sec // 86400
+    sec %= 86400
+    hours = sec // 3600
+    sec %= 3600
+    mins = sec // 60
+
+    if days > 0:
+        return f"{days}д {hours:02d}ч {mins:02d}м"
+    return f"{hours:02d}ч {mins:02d}м"
+
+
+async def countdown_updater(message: discord.Message, dt_target: datetime):
+    """
+    Каждую минуту обновляет поле '⏳ До стрелы' в эмбеде.
+    """
+    while True:
+        try:
+            emb = message.embeds[0]
+            new = discord.Embed(title=emb.title, description=emb.description, color=emb.color)
+
+            # переносим поля, но поле таймера заменяем
+            found_timer = False
+            for f in emb.fields:
+                if f.name in {"⏳ До стрелы", "⌛ До стрелы", "⏱ До стрелы"}:
+                    new.add_field(name="⏳ До стрелы", value=format_delta(dt_target), inline=False)
+                    found_timer = True
+                else:
+                    new.add_field(name=f.name, value=f.value, inline=f.inline)
+
+            if not found_timer:
+                new.add_field(name="⏳ До стрелы", value=format_delta(dt_target), inline=False)
+
+            if emb.footer:
+                new.set_footer(text=emb.footer.text)
+
+            await message.edit(embed=new)
+
+            # если уже началось — дальше не обновляем
+            if "✅" in format_delta(dt_target):
+                return
+
+            await asyncio.sleep(60)
+
+        except Exception:
+            return
+
 def format_left(delta_seconds: int) -> str:
     if delta_seconds <= 0:
         return "🔔 Уже началась / время вышло"
@@ -481,34 +569,13 @@ async def strela(
     allowed = discord.AllowedMentions(roles=True, users=True, everyone=False)
 
     await interaction.response.send_message(content=content, embed=embed, view=view, allowed_mentions=allowed)
-    msg = await interaction.original_response()
+    msg = await interaction.original_response()  # это отправленное ботом сообщение
 
-# Парсим "vremya" как HH:MM (пример: 21:10)
 try:
-    msk_now = datetime.now(ZoneInfo("Europe/Moscow"))
-    t = datetime.strptime(vremya.strip(), "%H:%M")
-    target_dt = msk_now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
-
-    # если время уже прошло — считаем что на следующий день
-    if target_dt <= msk_now:
-        target_dt = target_dt.replace(day=msk_now.day) + timedelta(days=1)
-
-    bot.loop.create_task(update_timer(msg, target_dt))
-except Exception as e:
-    print("TIME PARSE ERROR:", e)
-
-# парсим время
-try:
-    target_time = datetime.strptime(vremya, "%H:%M").replace(
-        year=datetime.now().year,
-        month=datetime.now().month,
-        day=datetime.now().day,
-        tzinfo=ZoneInfo("Europe/Moscow")
-    )
-
-    bot.loop.create_task(update_timer(msg, target_time))
-
-except:
+    dt_target = parse_strela_time(vremya)
+    asyncio.create_task(countdown_updater(msg, dt_target))
+except Exception:
+    # если время ввели криво — просто оставим как есть
     pass
 
 @bot.event
