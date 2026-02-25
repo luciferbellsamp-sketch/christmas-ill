@@ -2,10 +2,55 @@ import os
 import re
 import discord
 import asyncio
+from datetime import datetime, timedelta
 from discord.ext import commands
 from discord import app_commands
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+import asyncio
+
+def format_left(delta_seconds: int) -> str:
+    if delta_seconds <= 0:
+        return "🔔 Уже началась / время вышло"
+    h = delta_seconds // 3600
+    m = (delta_seconds % 3600) // 60
+    return f"{h:02d}ч {m:02d}м"
+
+async def update_timer(msg: discord.Message, target_dt: datetime):
+    while True:
+        now = datetime.now(ZoneInfo("Europe/Moscow"))
+        left = int((target_dt - now).total_seconds())
+
+        try:
+            if not msg.embeds:
+                return
+
+            old = msg.embeds[0]
+            new = discord.Embed(title=old.title, description=old.description, color=old.color)
+
+            # переносим все поля, но "До стрелы" пересобираем
+            for f in old.fields:
+                if f.name == "⏳ До стрелы":
+                    continue
+                new.add_field(name=f.name, value=f.value, inline=f.inline)
+
+            new.add_field(name="⏳ До стрелы", value=format_left(left), inline=False)
+
+            if old.footer:
+                new.set_footer(text=old.footer.text)
+
+            await msg.edit(embed=new)
+
+        except Exception as e:
+            print("TIMER ERROR:", e)
+            return
+
+        # если время вышло — прекращаем обновление
+        if left <= 0:
+            return
+
+        await asyncio.sleep(60)
 
 # ====== АВТО-ТАЙМЕР ======
 async def update_timer(message: discord.Message, target_time: datetime):
@@ -421,6 +466,14 @@ async def strela(
         biz=biz,
         status="🟠 Ожидает ответа",
     )
+    
+    embed.add_field(
+        name="⏳ До стрелы",
+        value="Вычисляю...",
+        inline=False
+    
+    )
+)
 
     # Добавим явное поле "Кому" (чтобы в эмбеде было видно, кому забивают)
     embed.add_field(name="Кому", value=(ping_to if ping_to else protiv), inline=False)
@@ -430,6 +483,20 @@ async def strela(
 
     await interaction.response.send_message(content=content, embed=embed, view=view, allowed_mentions=allowed)
     msg = await interaction.original_response()
+
+# Парсим "vremya" как HH:MM (пример: 21:10)
+try:
+    msk_now = datetime.now(ZoneInfo("Europe/Moscow"))
+    t = datetime.strptime(vremya.strip(), "%H:%M")
+    target_dt = msk_now.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
+
+    # если время уже прошло — считаем что на следующий день
+    if target_dt <= msk_now:
+        target_dt = target_dt.replace(day=msk_now.day) + timedelta(days=1)
+
+    bot.loop.create_task(update_timer(msg, target_dt))
+except Exception as e:
+    print("TIME PARSE ERROR:", e)
 
 # парсим время
 try:
