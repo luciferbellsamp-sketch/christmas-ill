@@ -429,7 +429,7 @@ async def strela(
     allowed = discord.AllowedMentions(roles=True, users=True, everyone=False)
 
     await interaction.response.send_message(content=content, embed=embed, view=view, allowed_mentions=allowed)
-msg = await interaction.original_response()
+    msg = await interaction.original_response()
 
 # парсим время
 try:
