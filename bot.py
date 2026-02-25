@@ -326,7 +326,7 @@ async def strela(
     ping_from = build_ping_text(tag)
     ping_to = build_ping_text(protiv)
 
-content = f"**🚨 Новая стрела**\n{ping_to}"
+    content = f"**🚨 Новая стрела**\n{ping_to}"
 
     # пингуем обе стороны (и убираем лишние пробелы)
     content = " ".join(x for x in [ping_from, ping_to] if x).strip()
