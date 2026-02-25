@@ -174,12 +174,12 @@ class RequestView(discord.ui.View):
             if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал"}:
                 continue
 
-            if f.name == "Статус":
-                new.add_field(
-                    name="Статус",
-                    value="🟢 Принято",
-                    inline=True
-                )
+          if "Статус" in f.name:
+              new.add_field(
+                  name="📊 Статус",
+                  value="🟢 Принято",
+                  inline=True
+         )
             else:
                 new.add_field(
                     name=f.name,
