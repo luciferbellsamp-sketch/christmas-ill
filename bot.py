@@ -12,6 +12,12 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # ====== НАСТРОЙКИ ПИНГОВ ПО ТЕГАМ ======
 # ВСТАВЬ СЮДА ID РОЛЕЙ (ПКМ по роли -> Copy Role ID, включи Developer Mode в Discord)
 # Пинги лидеров/замов по фракциям (ID ролей)
+ALLOWED_CHANNELS = [
+    1468386694175789188,  # канал 1
+    1199092928472174734,  # канал 2
+    1350588850744987791,
+]
+
 FACTION_PINGS = {
     "rm":      {"leader": 1199092925913632839, "deputy": 1199092925506797596},
     "lcn":     {"leader": 1199092925859123281, "deputy": 1199092925506797595},
@@ -323,6 +329,13 @@ async def strela(
     oruzhie: str,
     lokaciya: str,
 ):
+    if interaction.channel.id not in ALLOWED_CHANNELS:
+        await interaction.response.send_message(
+            "❌ Эту команду можно использовать только в канале стрел.",
+            ephemeral=True
+        )
+        return
+        
     ping_from = build_ping_text(tag)
     ping_to = build_ping_text(protiv)
 
