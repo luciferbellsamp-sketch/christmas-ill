@@ -151,9 +151,9 @@ class RequestView(discord.ui.View):
                         child.disabled = True
 
     async def accept_with_size(self, interaction: discord.Interaction, size: str):
-    self.accepted_by_id = interaction.user.id
-    self.size = size
-    self.rejected_by_id = None
+        self.accepted_by_id = interaction.user.id
+        self.size = size
+        self.rejected_by_id = None
 
     # время МСК
     msk_time = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
