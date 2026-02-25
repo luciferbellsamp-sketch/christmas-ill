@@ -1,10 +1,69 @@
 import os
 import re
 import discord
+import asyncio
 from discord.ext import commands
 from discord import app_commands
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+# ====== АВТО-ТАЙМЕР ======
+async def update_timer(message: discord.Message, target_time: datetime):
+
+    while True:
+
+        await asyncio.sleep(60)
+
+        now = datetime.now(ZoneInfo("Europe/Moscow"))
+
+        if now >= target_time:
+
+            embed = message.embeds[0]
+
+            for i, field in enumerate(embed.fields):
+
+                if "Таймер" in field.name:
+
+                    embed.set_field_at(
+                        i,
+                        name="⏳ Таймер",
+                        value="🟢 Стрела началась",
+                        inline=False
+                    )
+
+                if "Статус" in field.name:
+
+                    embed.set_field_at(
+                        i,
+                        name="📊 Статус",
+                        value="🟢 Стрела началась",
+                        inline=True
+                    )
+
+            await message.edit(embed=embed)
+
+            break
+
+        diff = target_time - now
+
+        mins = int(diff.total_seconds() // 60)
+
+        text = f"⏳ До стрелы: {mins} мин"
+
+        embed = message.embeds[0]
+
+        for i, field in enumerate(embed.fields):
+
+            if "Таймер" in field.name:
+
+                embed.set_field_at(
+                    i,
+                    name="⏳ Таймер",
+                    value=text,
+                    inline=False
+                )
+
+        await message.edit(embed=embed)
 
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -370,7 +429,21 @@ async def strela(
     allowed = discord.AllowedMentions(roles=True, users=True, everyone=False)
 
     await interaction.response.send_message(content=content, embed=embed, view=view, allowed_mentions=allowed)
+msg = await interaction.original_response()
 
+# парсим время
+try:
+    target_time = datetime.strptime(vremya, "%H:%M").replace(
+        year=datetime.now().year,
+        month=datetime.now().month,
+        day=datetime.now().day,
+        tzinfo=ZoneInfo("Europe/Moscow")
+    )
+
+    bot.loop.create_task(update_timer(msg, target_time))
+
+except:
+    pass
 
 @bot.event
 async def on_ready():
