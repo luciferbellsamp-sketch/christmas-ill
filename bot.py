@@ -64,6 +64,7 @@ def format_delta(dt_target: datetime) -> str:
 async def countdown_updater(message: discord.Message, dt_target: datetime):
     while True:
         try:
+            # берём актуальную версию сообщения
             message = await message.channel.fetch_message(message.id)
             if not message.embeds:
                 return
@@ -77,7 +78,7 @@ async def countdown_updater(message: discord.Message, dt_target: datetime):
                     status_value = (f.value or "").strip()
                     break
 
-            is_accepted = "Принято" in status_value or "🟢" in status_value
+            is_accepted = ("Принято" in status_value) or ("🟢" in status_value)
 
             # Считаем остаток времени
             tz = ZoneInfo("Europe/Moscow")
@@ -127,7 +128,7 @@ async def countdown_updater(message: discord.Message, dt_target: datetime):
                 if not is_accepted:
                     return
 
-                # 2) Принято -> отправляем reply и удаляем через 7 минут
+                # 2) Принято -> отправляем reply и удаляем через 5 минут
                 description = emb.description or ""
 
                 # Автор (из поля "Автор")
@@ -174,11 +175,11 @@ async def countdown_updater(message: discord.Message, dt_target: datetime):
                 allowed = discord.AllowedMentions(roles=True, users=True, everyone=False)
 
                 await message.reply(
-                     content=notify_text,
-                     allowed_mentions=allowed,
-                     mention_author=True,
-                     delete_after=300
-                 )
+                    content=notify_text,
+                    allowed_mentions=allowed,
+                    mention_author=True,
+                    delete_after=300  # 5 минут
+                )
 
                 return
 
@@ -213,6 +214,15 @@ ALLOWED_SIZES = {"2x2", "3x3", "4x4", "5x5"}
 def normalize_tag(text: str) -> str:
     return re.sub(r"\s+", "", text.strip().lower())
 
+
+def build_ping_text(tag: str) -> str:
+    key = normalize_tag(tag)
+    roles = FACTION_PINGS.get(key)
+    if not roles:
+        return ""
+    return f"<@&{roles['leader']}> <@&{roles['deputy']}>"
+
+
 def strela_already_started_from_embed(emb: discord.Embed) -> bool:
     vremya_val = None
     for f in emb.fields:
@@ -230,12 +240,6 @@ def strela_already_started_from_embed(emb: discord.Embed) -> bool:
 
     now = datetime.now(ZoneInfo("Europe/Moscow"))
     return now >= dt_target
-def build_ping_text(tag: str) -> str:
-    key = normalize_tag(tag)
-    roles = FACTION_PINGS.get(key)
-    if not roles:
-        return ""
-    return f"<@&{roles['leader']}> <@&{roles['deputy']}>"
 
 
 def format_request_embed(
@@ -345,47 +349,31 @@ class RequestView(discord.ui.View):
         )
 
         for f in old.fields:
-            # пропускаем служебные поля
             if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал"}:
                 continue
 
-            # меняем статус
             if "Статус" in f.name:
-                new.add_field(
-                    name="📊 Статус",
-                    value="🟢 Принято",
-                    inline=True
-                )
+                new.add_field(name="📊 Статус", value="🟢 Принято", inline=True)
             else:
                 new.add_field(name=f.name, value=f.value, inline=f.inline)
 
-        # кто принял + время
         new.add_field(
             name="✅ Принял",
             value=f"{interaction.user.mention} ({msk_time} МСК)",
             inline=False
         )
 
-        # количество
-        new.add_field(
-            name="👥 Количество",
-            value=size,
-            inline=False
-        )
+        new.add_field(name="👥 Количество", value=size, inline=False)
 
         new.set_footer(text="Используйте кнопки ниже")
 
         self.lock_if_finished()
         await msg.edit(embed=new, view=self)
 
-        await interaction.response.send_message(
-            f"✅ Принято {size}",
-            ephemeral=True
-        )
-        
-    discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
+        await interaction.response.send_message(f"✅ Принято {size}", ephemeral=True)
+
+    @discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Блокировка если стрела уже началась
         emb = interaction.message.embeds[0]
         if strela_already_started_from_embed(emb):
             await interaction.response.send_message(
@@ -395,6 +383,7 @@ class RequestView(discord.ui.View):
             return
 
         await interaction.response.send_modal(SizeModal(self))
+
     @discord.ui.button(label="❌ Отказать", style=discord.ButtonStyle.danger, custom_id="req_reject")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
         emb = interaction.message.embeds[0]
@@ -404,6 +393,7 @@ class RequestView(discord.ui.View):
                 ephemeral=True
             )
             return
+
         msk_time = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
 
         self.rejected_by_id = interaction.user.id
@@ -424,11 +414,7 @@ class RequestView(discord.ui.View):
                 continue
 
             if "Статус" in f.name:
-                new.add_field(
-                    name="📊 Статус",
-                    value="🔴 Отказано",
-                    inline=True
-                )
+                new.add_field(name="📊 Статус", value="🔴 Отказано", inline=True)
             else:
                 new.add_field(name=f.name, value=f.value, inline=f.inline)
 
@@ -474,7 +460,6 @@ class RequestView(discord.ui.View):
             if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал"}:
                 continue
 
-            # важно: ловим и "Статус", и "📊 Статус"
             if "Статус" in f.name:
                 new.add_field(name="Статус", value="🟠 Ожидает ответа", inline=True)
             else:
