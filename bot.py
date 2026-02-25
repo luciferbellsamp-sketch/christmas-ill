@@ -173,17 +173,12 @@ async def countdown_updater(message: discord.Message, dt_target: datetime):
 
                 allowed = discord.AllowedMentions(roles=True, users=True, everyone=False)
 
-                notify_msg = await message.reply(
-                    content=notify_text,
-                    allowed_mentions=allowed,
-                    mention_author=True
-                )
-
-                await asyncio.sleep(420)
-                try:
-                    await notify_msg.delete()
-                except:
-                    pass
+                await message.reply(
+                     content=notify_text,
+                     allowed_mentions=allowed,
+                     mention_author=True,
+                     delete_after=300
+                 )
 
                 return
 
