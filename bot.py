@@ -329,7 +329,6 @@ async def strela(
     content = f"**🚨 Новая стрела**\n{ping_to}"
 
     # пингуем обе стороны (и убираем лишние пробелы)
-    content = " ".join(x for x in [ping_from, ping_to] if x).strip()
 
     embed = format_request_embed(
         author=interaction.user,
