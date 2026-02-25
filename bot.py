@@ -382,26 +382,27 @@ class RequestView(discord.ui.View):
             f"✅ Принято {size}",
             ephemeral=True
         )
+        
+    discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Блокировка если стрела уже началась
+        emb = interaction.message.embeds[0]
+        if strela_already_started_from_embed(emb):
+            await interaction.response.send_message(
+                "❌ Нельзя принять — стрела уже началась.",
+                ephemeral=True
+            )
+            return
 
-   @discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
-   async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-    # Блокировка если стрела уже началась
-       emb = interaction.message.embeds[0]
-       if strela_already_started_from_embed(emb):
-           await interaction.response.send_message(
-               "❌ Нельзя принять — стрела уже началась.",
-               ephemeral=True
-           )
-           return
-
-    await interaction.response.send_modal(SizeModal(self))
-
+        await interaction.response.send_modal(SizeModal(self))
     @discord.ui.button(label="❌ Отказать", style=discord.ButtonStyle.danger, custom_id="req_reject")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
         emb = interaction.message.embeds[0]
         if strela_already_started_from_embed(emb):
-            await interaction.response.send_message("❌", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Нельзя отказать — стрела уже началась.",
+                ephemeral=True
+            )
             return
         msk_time = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
 
