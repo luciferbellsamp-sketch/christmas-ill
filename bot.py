@@ -383,14 +383,19 @@ class RequestView(discord.ui.View):
             ephemeral=True
         )
 
-    @discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
-    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        emb = interaction.message.embeds[0]
-        if strela_already_started_from_embed(emb):
-            await interaction.response.send_message("❌", ephemeral=True)
-            return
+   @discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
+   async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-         await interaction.response.send_modal(SizeModal(self))
+    # Блокировка если стрела уже началась
+       emb = interaction.message.embeds[0]
+       if strela_already_started_from_embed(emb):
+           await interaction.response.send_message(
+               "❌ Нельзя принять — стрела уже началась.",
+               ephemeral=True
+           )
+           return
+
+    await interaction.response.send_modal(SizeModal(self))
 
     @discord.ui.button(label="❌ Отказать", style=discord.ButtonStyle.danger, custom_id="req_reject")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
