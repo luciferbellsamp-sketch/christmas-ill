@@ -51,7 +51,7 @@ def format_request_embed(
     size: str | None = None,
 ) -> discord.Embed:
     e = discord.Embed(
-        title="⚔️ Забив стрелы",
+        title="Christmas Illegals",
         color=discord.Color.orange() if accepted_by is None else discord.Color.green(),
         description=""
     )
