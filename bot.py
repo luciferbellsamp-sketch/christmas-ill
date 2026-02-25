@@ -341,7 +341,7 @@ async def strela(
     )
 
     # Добавим явное поле "Кому" (чтобы в эмбеде было видно, кому забивают)
-    embed.add_field(name="Кому", value=(ping_to if ping_to else komu_tag), inline=False)
+    embed.add_field(name="Кому", value=(ping_to if ping_to else protiv), inline=False)
 
     view = RequestView(author_id=interaction.user.id)
     allowed = discord.AllowedMentions(roles=True, users=True, everyone=False)
