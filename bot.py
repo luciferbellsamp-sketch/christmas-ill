@@ -11,29 +11,13 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ====== НАСТРОЙКИ ПИНГОВ ПО ТЕГАМ ======
 # ВСТАВЬ СЮДА ID РОЛЕЙ (ПКМ по роли -> Copy Role ID, включи Developer Mode в Discord)
-TAG_ROLE_PINGS = {
-    # TRB
-    "trb": [1475926501194072259],
-    "трб": [1475926501194072259],
-
-    # Yakuza
-    "yakuza": [1475926311234043996],
-    "якуза": [1475926311234043996],
-
-    # Warlock
-    "warlock": [1475930203959328778],
-    "варлок": [1475930203959328778],
-
-    # La Cosa Nostra (LCN)
-    "lcn": [1475926258931204186],
-    "лкн": [1475926258931204186],
-    "la cosa nostra": [1475926258931204186],
-    "lacosa nostra": [1475926258931204186],
-
-    # Russian Mafia (RM)
-    "rm": [1475926293257261277],
-    "russian mafia": [1475926293257261277],
-    "русская мафия": [1475926293257261277],
+# Пинги лидеров/замов по фракциям (ID ролей)
+FACTION_PINGS = {
+    "rm":      {"leader": 1199092925913632839, "deputy": 1199092925506797596},
+    "lcn":     {"leader": 1199092925859123281, "deputy": 1199092925506797595},
+    "warlock": {"leader": 1199092925859123280, "deputy": 1199092925506797594},
+    "yakuza":  {"leader": 1199092925859123279, "deputy": 1199092925506797593},
+    "trb":     {"leader": 1199710835384275024, "deputy": 1199710842715897947},
 }
 
 ALLOWED_SIZES = {"2x2", "3x3", "4x4", "5x5"}
@@ -42,8 +26,11 @@ def normalize_tag(text: str) -> str:
     return re.sub(r"\s+", "", text.strip().lower())
 
 def build_ping_text(tag: str) -> str:
-    roles = TAG_ROLE_PINGS.get(normalize_tag(tag), [])
-    return " ".join(f"<@&{rid}>" for rid in roles)
+    key = normalize_tag(tag)
+    roles = FACTION_PINGS.get(key)
+    if not roles:
+        return ""
+    return f"<@&{roles['leader']}> <@&{roles['deputy']}>"
 
 def format_request_embed(
     author: discord.Member,
@@ -336,8 +323,8 @@ async def strela(
     oruzhie: str,
     lokaciya: str,
 ):
-    ping_from = build_ping_text(tag)
     ping_to = build_ping_text(protiv)
+    content = f"**Новая стрела** {ping_to}".strip()
 
     # пингуем обе стороны (и убираем лишние пробелы)
     content = " ".join(x for x in [ping_from, ping_to] if x).strip()
