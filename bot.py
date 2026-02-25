@@ -473,7 +473,6 @@ async def strela(
         inline=False
     
     )
-)
 
     # Добавим явное поле "Кому" (чтобы в эмбеде было видно, кому забивают)
     embed.add_field(name="Кому", value=(ping_to if ping_to else protiv), inline=False)
