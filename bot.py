@@ -64,6 +64,7 @@ def format_delta(dt_target: datetime) -> str:
 async def countdown_updater(message: discord.Message, dt_target: datetime):
     while True:
         try:
+            message = await message.channel.fetch_message(message.id)
             if not message.embeds:
                 return
 
