@@ -5,10 +5,8 @@ import asyncio
 from datetime import datetime, timedelta
 from discord.ext import commands
 from discord import app_commands
-from datetime import datetime
 from zoneinfo import ZoneInfo
 
-import asyncio
 
 def parse_strela_time(vremya_text: str) -> datetime:
     """
@@ -32,7 +30,7 @@ def parse_strela_time(vremya_text: str) -> datetime:
                 dt = dt.replace(year=now.year, month=now.month, day=now.day)
                 dt = dt.replace(tzinfo=tz)
                 if dt <= now:
-                    dt = dt.replace(day=dt.day) + timedelta(days=1)  # завтра
+                    dt = dt + timedelta(days=1)  # завтра
                 return dt
 
             # есть дата
@@ -65,149 +63,51 @@ def format_delta(dt_target: datetime) -> str:
 
 async def countdown_updater(message: discord.Message, dt_target: datetime):
     """
-    Каждую минуту обновляет поле '⏳ До стрелы' в эмбеде.
+    Каждую минуту обновляет ТОЛЬКО поле '⏳ До стрелы' в эмбеде.
+    Не трогает Статус/Принял/Отказал (чтобы не было отката).
     """
     while True:
         try:
-            emb = message.embeds[0]
-            new = discord.Embed(title=emb.title, description=emb.description, color=emb.color)
-
-            # переносим поля, но поле таймера заменяем
-            found_timer = False
-            for f in emb.fields:
-                if f.name in {"⏳ До стрелы", "⌛ До стрелы", "⏱ До стрелы"}:
-                    new.add_field(name="⏳ До стрелы", value=format_delta(dt_target), inline=False)
-                    found_timer = True
-                else:
-                    new.add_field(name=f.name, value=f.value, inline=f.inline)
-
-            if not found_timer:
-                new.add_field(name="⏳ До стрелы", value=format_delta(dt_target), inline=False)
-
-            if emb.footer:
-                new.set_footer(text=emb.footer.text)
-
-            await message.edit(embed=new)
-
-            # если уже началось — дальше не обновляем
-            if "✅" in format_delta(dt_target):
-                return
-
             await asyncio.sleep(60)
 
-        except Exception:
-            return
-
-def format_left(delta_seconds: int) -> str:
-    if delta_seconds <= 0:
-        return "🔔 Уже началась / время вышло"
-    h = delta_seconds // 3600
-    m = (delta_seconds % 3600) // 60
-    return f"{h:02d}ч {m:02d}м"
-
-async def update_timer(msg: discord.Message, target_dt: datetime):
-    while True:
-        now = datetime.now(ZoneInfo("Europe/Moscow"))
-        left = int((target_dt - now).total_seconds())
-
-        try:
+            # Берем актуальное сообщение (после принятия/отказа/отката)
+            msg = await message.channel.fetch_message(message.id)
             if not msg.embeds:
                 return
 
-            old = msg.embeds[0]
-            new = discord.Embed(title=old.title, description=old.description, color=old.color)
+            embed = msg.embeds[0]
+            value = format_delta(dt_target)
 
-            # переносим все поля, но "До стрелы" пересобираем
-            for f in old.fields:
-                if f.name == "⏳ До стрелы":
-                    continue
-                new.add_field(name=f.name, value=f.value, inline=f.inline)
+            # обновляем только поле таймера
+            timer_index = None
+            for i, f in enumerate(embed.fields):
+                if f.name in {"⏳ До стрелы", "⌛ До стрелы", "⏱ До стрелы"} or f.name.startswith("⏳ До стрелы"):
+                    timer_index = i
+                    break
 
-            new.add_field(name="⏳ До стрелы", value=format_left(left), inline=False)
+            if timer_index is None:
+                embed.add_field(name="⏳ До стрелы", value=value, inline=False)
+            else:
+                embed.set_field_at(timer_index, name="⏳ До стрелы", value=value, inline=False)
 
-            if old.footer:
-                new.set_footer(text=old.footer.text)
+            await msg.edit(embed=embed)
 
-            await msg.edit(embed=new)
+            if value.startswith("✅"):
+                return
 
         except Exception as e:
             print("TIMER ERROR:", e)
             return
 
-        # если время вышло — прекращаем обновление
-        if left <= 0:
-            return
-
-        await asyncio.sleep(60)
-
-# ====== АВТО-ТАЙМЕР ======
-async def update_timer(message: discord.Message, target_time: datetime):
-
-    while True:
-
-        await asyncio.sleep(60)
-
-        now = datetime.now(ZoneInfo("Europe/Moscow"))
-
-        if now >= target_time:
-
-            embed = message.embeds[0]
-
-            for i, field in enumerate(embed.fields):
-
-                if "Таймер" in field.name:
-
-                    embed.set_field_at(
-                        i,
-                        name="⏳ Таймер",
-                        value="🟢 Стрела началась",
-                        inline=False
-                    )
-
-                if "Статус" in field.name:
-
-                    embed.set_field_at(
-                        i,
-                        name="📊 Статус",
-                        value="🟢 Стрела началась",
-                        inline=True
-                    )
-
-            await message.edit(embed=embed)
-
-            break
-
-        diff = target_time - now
-
-        mins = int(diff.total_seconds() // 60)
-
-        text = f"⏳ До стрелы: {mins} мин"
-
-        embed = message.embeds[0]
-
-        for i, field in enumerate(embed.fields):
-
-            if "Таймер" in field.name:
-
-                embed.set_field_at(
-                    i,
-                    name="⏳ Таймер",
-                    value=text,
-                    inline=False
-                )
-
-        await message.edit(embed=embed)
 
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ====== НАСТРОЙКИ ПИНГОВ ПО ТЕГАМ ======
-# ВСТАВЬ СЮДА ID РОЛЕЙ (ПКМ по роли -> Copy Role ID, включи Developer Mode в Discord)
-# Пинги лидеров/замов по фракциям (ID ролей)
 ALLOWED_CHANNELS = [
     1468386694175789188,  # канал 1
     1199092928472174734,  # канал 2
-    1350588850744987791,
+    1350588850744987791,  # канал 3
 ]
 
 FACTION_PINGS = {
@@ -220,8 +120,10 @@ FACTION_PINGS = {
 
 ALLOWED_SIZES = {"2x2", "3x3", "4x4", "5x5"}
 
+
 def normalize_tag(text: str) -> str:
     return re.sub(r"\s+", "", text.strip().lower())
+
 
 def build_ping_text(tag: str) -> str:
     key = normalize_tag(tag)
@@ -229,6 +131,7 @@ def build_ping_text(tag: str) -> str:
     if not roles:
         return ""
     return f"<@&{roles['leader']}> <@&{roles['deputy']}>"
+
 
 def format_request_embed(
     author: discord.Member,
@@ -248,9 +151,7 @@ def format_request_embed(
         description=""
     )
 
-    # Верхняя часть “как в твоём окне”
     lines = []
-
     lines.append(
         f"⚔️ **ЗАБИВ СТРЕЛЫ**\n"
         f"┌ 🏴 Фракция: **`{tag.upper()}`**\n"
@@ -276,6 +177,7 @@ def format_request_embed(
     e.set_footer(text="Кнопки ниже: принять / отказать / откат")
     return e
 
+
 # ====== MODAL ДЛЯ ВВОДА КОЛИЧЕСТВА ======
 class SizeModal(discord.ui.Modal, title="Принять стрелу: количество"):
     size = discord.ui.TextInput(
@@ -291,7 +193,6 @@ class SizeModal(discord.ui.Modal, title="Принять стрелу: колич
 
     async def on_submit(self, interaction: discord.Interaction):
         val = normalize_tag(str(self.size.value))
-        # привести к виду 3x3 (на случай русской х)
         val = val.replace("х", "x")
 
         if val not in ALLOWED_SIZES:
@@ -302,6 +203,7 @@ class SizeModal(discord.ui.Modal, title="Принять стрелу: колич
             return
 
         await self.parent_view.accept_with_size(interaction, val)
+
 
 # ====== VIEW С КНОПКАМИ ======
 class RequestView(discord.ui.View):
@@ -326,7 +228,6 @@ class RequestView(discord.ui.View):
         self.size = size
         self.rejected_by_id = None
 
-    # время МСК
         msk_time = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
 
         msg = interaction.message
@@ -339,12 +240,11 @@ class RequestView(discord.ui.View):
         )
 
         for f in old.fields:
-
-        # пропускаем служебные поля
+            # пропускаем служебные поля
             if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал"}:
                 continue
 
-        # меняем статус
+            # меняем статус
             if "Статус" in f.name:
                 new.add_field(
                     name="📊 Статус",
@@ -352,20 +252,16 @@ class RequestView(discord.ui.View):
                     inline=True
                 )
             else:
-                new.add_field(
-                    name=f.name,
-                    value=f.value,
-                    inline=f.inline
-                )
+                new.add_field(name=f.name, value=f.value, inline=f.inline)
 
-    # кто принял + время
+        # кто принял + время
         new.add_field(
             name="✅ Принял",
             value=f"{interaction.user.mention} ({msk_time} МСК)",
             inline=False
         )
 
-    # количество
+        # количество
         new.add_field(
             name="👥 Количество",
             value=size,
@@ -375,12 +271,11 @@ class RequestView(discord.ui.View):
         new.set_footer(text="Используйте кнопки ниже")
 
         self.lock_if_finished()
-
         await msg.edit(embed=new, view=self)
 
         await interaction.response.send_message(
-            f"✅ Принято {size}",     
-             ephemeral=True
+            f"✅ Принято {size}",
+            ephemeral=True
         )
 
     @discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
@@ -389,10 +284,6 @@ class RequestView(discord.ui.View):
 
     @discord.ui.button(label="❌ Отказать", style=discord.ButtonStyle.danger, custom_id="req_reject")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
-
         msk_time = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
 
         self.rejected_by_id = interaction.user.id
@@ -417,13 +308,9 @@ class RequestView(discord.ui.View):
                     name="📊 Статус",
                     value="🔴 Отказано",
                     inline=True
-               )
-            else:
-                new.add_field(
-                    name=f.name,
-                    value=f.value,
-                    inline=f.inline
                 )
+            else:
+                new.add_field(name=f.name, value=f.value, inline=f.inline)
 
         new.add_field(
             name="❌ Отказал",
@@ -434,52 +321,20 @@ class RequestView(discord.ui.View):
         new.set_footer(text=old.footer.text if old.footer else "")
 
         self.lock_if_finished()
-
         await msg.edit(embed=new, view=self)
 
-        await interaction.response.send_message(
-            "❌ Отказано.",
-            ephemeral=True
-        )
-
-    @discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
-    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Открываем modal ввода количества
-        await interaction.response.send_modal(SizeModal(self))
-
-    @discord.ui.button(label="❌ Отказать", style=discord.ButtonStyle.danger, custom_id="req_reject")
-    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.rejected_by_id = interaction.user.id
-        self.accepted_by_id = None
-        self.size = None
-
-        msg = interaction.message
-        old = msg.embeds[0]
-        new = discord.Embed(title=old.title, description=old.description, color=discord.Color.red())
-
-        for f in old.fields:
-            if f.name in {"✅ Принял", "👥 Количество"}:
-                continue
-            if f.name == "Статус":
-                new.add_field(name="Статус", value="🔴 Отказано", inline=True)
-            else:
-                new.add_field(name=f.name, value=f.value, inline=f.inline)
-
-        new.add_field(name="❌ Отказал", value=interaction.user.mention, inline=False)
-        new.set_footer(text=old.footer.text if old.footer else "")
-
-        self.lock_if_finished()
-        await msg.edit(embed=new, view=self)
         await interaction.response.send_message("❌ Отказано.", ephemeral=True)
 
     @discord.ui.button(label="↩️ Откат", style=discord.ButtonStyle.secondary, custom_id="req_rollback")
     async def rollback(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Чтобы не было злоупотребления: откат может делать автор или тот, кто принял/отказал
         allowed = {self.author_id, self.accepted_by_id, self.rejected_by_id}
         allowed.discard(None)
 
         if interaction.user.id not in allowed:
-            await interaction.response.send_message("❌ Откат может сделать только автор или принявший/отказавший.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Откат может сделать только автор или принявший/отказавший.",
+                ephemeral=True
+            )
             return
 
         self.accepted_by_id = None
@@ -488,21 +343,25 @@ class RequestView(discord.ui.View):
 
         msg = interaction.message
         old = msg.embeds[0]
-        # Возврат в “ожидание”
-        new = discord.Embed(title=old.title, description=old.description, color=discord.Color.orange())
 
-        # пересоберём поля: Автор/Статус, уберём служебные
+        new = discord.Embed(
+            title=old.title,
+            description=old.description,
+            color=discord.Color.orange()
+        )
+
         for f in old.fields:
             if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал"}:
                 continue
-            if f.name == "Статус":
+
+            # важно: ловим и "Статус", и "📊 Статус"
+            if "Статус" in f.name:
                 new.add_field(name="Статус", value="🟠 Ожидает ответа", inline=True)
             else:
                 new.add_field(name=f.name, value=f.value, inline=f.inline)
 
         new.set_footer(text=old.footer.text if old.footer else "")
 
-        # разблокируем кнопки
         for child in self.children:
             if isinstance(child, discord.ui.Button):
                 child.disabled = False
@@ -536,13 +395,11 @@ async def strela(
             ephemeral=True
         )
         return
-        
+
     ping_from = build_ping_text(tag)
     ping_to = build_ping_text(protiv)
 
     content = f"**🚨 Новая стрела**\n{ping_to}"
-
-    # пингуем обе стороны (и убираем лишние пробелы)
 
     embed = format_request_embed(
         author=interaction.user,
@@ -554,15 +411,9 @@ async def strela(
         biz=biz,
         status="🟠 Ожидает ответа",
     )
-    
-    embed.add_field(
-        name="⏳ До стрелы",
-        value="Вычисляю...",
-        inline=False
-    
-    )
 
-    # Добавим явное поле "Кому" (чтобы в эмбеде было видно, кому забивают)
+    embed.add_field(name="⏳ До стрелы", value="Вычисляю...", inline=False)
+
     embed.add_field(name="Кому", value=(ping_to if ping_to else protiv), inline=False)
 
     view = RequestView(author_id=interaction.user.id)
@@ -575,13 +426,14 @@ async def strela(
         allowed_mentions=allowed
     )
 
-    msg = await interaction.original_response()  # сообщение бота
+    msg = await interaction.original_response()
 
     try:
         dt_target = parse_strela_time(vremya)
         asyncio.create_task(countdown_updater(msg, dt_target))
     except Exception as e:
         print("TIMER START ERROR:", e)
+
 
 @bot.event
 async def on_ready():
