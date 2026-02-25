@@ -213,7 +213,23 @@ ALLOWED_SIZES = {"2x2", "3x3", "4x4", "5x5"}
 def normalize_tag(text: str) -> str:
     return re.sub(r"\s+", "", text.strip().lower())
 
+def strela_already_started_from_embed(emb: discord.Embed) -> bool:
+    vremya_val = None
+    for f in emb.fields:
+        if f.name == "__strela_time__":
+            vremya_val = (f.value or "").strip()
+            break
 
+    if not vremya_val:
+        return False
+
+    try:
+        dt_target = parse_strela_time(vremya_val)
+    except Exception:
+        return False
+
+    now = datetime.now(ZoneInfo("Europe/Moscow"))
+    return now >= dt_target
 def build_ping_text(tag: str) -> str:
     key = normalize_tag(tag)
     roles = FACTION_PINGS.get(key)
@@ -369,10 +385,19 @@ class RequestView(discord.ui.View):
 
     @discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(SizeModal(self))
+        emb = interaction.message.embeds[0]
+        if strela_already_started_from_embed(emb):
+            await interaction.response.send_message("❌", ephemeral=True)
+            return
+
+         await interaction.response.send_modal(SizeModal(self))
 
     @discord.ui.button(label="❌ Отказать", style=discord.ButtonStyle.danger, custom_id="req_reject")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+        emb = interaction.message.embeds[0]
+        if strela_already_started_from_embed(emb):
+            await interaction.response.send_message("❌", ephemeral=True)
+            return
         msk_time = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
 
         self.rejected_by_id = interaction.user.id
@@ -502,6 +527,7 @@ async def strela(
     )
 
     embed.add_field(name="⏳ До стрелы", value="Вычисляю...", inline=False)
+    embed.add_field(name="__strela_time__", value=vremya, inline=False)
 
     embed.add_field(name="Кому", value=(ping_to if ping_to else protiv), inline=False)
 
