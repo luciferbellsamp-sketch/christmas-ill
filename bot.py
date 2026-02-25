@@ -58,12 +58,19 @@ def format_request_embed(
 
     # Верхняя часть “как в твоём окне”
     lines = []
-    lines.append(f"**Забиваю стрелу {tag.upper()} против {protiv}**")
+
+    lines.append(
+        f"⚔️ **ЗАБИВ СТРЕЛЫ**\n"
+        f"┌ 🏴 Фракция: **`{tag.upper()}`**\n"
+        f"└ 🎯 Против: **`{protiv.upper()}`**"
+    )
+
     if biz:
-        lines.append(f"**Война за бизнес:** {biz}")
-    lines.append(f"**Время проведения:** {vremya}")
-    lines.append(f"**Локация:** {lokaciya}")
-    lines.append(f"**Оружие:** {oruzhie}")
+        lines.append(f"🏢 Бизнес: **`{biz}`**")
+
+    lines.append(f"🕒 Время: **`{vremya}`**")
+    lines.append(f"📍 Локация: **`{lokaciya}`**")
+    lines.append(f"🔫 Оружие: **`{oruzhie}`**")
     e.description = "\n".join(lines)
 
     e.add_field(name="Автор", value=author.mention, inline=True)
