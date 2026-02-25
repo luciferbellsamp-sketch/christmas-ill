@@ -37,34 +37,6 @@ def build_ping_text(tag: str) -> str:
     if not roles:
         return ""
     return f"<@&{roles['leader']}> <@&{roles['deputy']}>"
-    
-def get_time_until_strela(time_str: str) -> str:
-    try:
-        now = datetime.now(ZoneInfo("Europe/Moscow"))
-
-        # ожидает формат HH:MM
-        target = datetime.strptime(time_str, "%H:%M")
-        target = target.replace(
-            year=now.year,
-            month=now.month,
-            day=now.day,
-            tzinfo=ZoneInfo("Europe/Moscow")
-        )
-
-        # если время уже прошло — считаем на завтра
-        if target <= now:
-            from datetime import timedelta
-            target += timedelta(days=1)
-
-        diff = target - now
-
-        hours = diff.seconds // 3600
-        minutes = (diff.seconds % 3600) // 60
-
-        return f"{hours}ч {minutes}м"
-
-    except:
-        return "неизвестно"
 
 def format_request_embed(
     author: discord.Member,
@@ -96,10 +68,7 @@ def format_request_embed(
     if biz:
         lines.append(f"🏢 Бизнес: **`{biz}`**")
 
-    remaining = get_time_until_strela(vremya)
-
     lines.append(f"🕒 Время: **`{vremya}`**")
-    lines.append(f"⏳ До стрелы: **`{remaining}`**")
     lines.append(f"📍 Локация: **`{lokaciya}`**")
     lines.append(f"🔫 Оружие: **`{oruzhie}`**")
     e.description = "\n".join(lines)
