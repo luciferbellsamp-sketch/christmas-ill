@@ -156,61 +156,61 @@ class RequestView(discord.ui.View):
         self.rejected_by_id = None
 
     # время МСК
-    msk_time = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
+        msk_time = datetime.now(ZoneInfo("Europe/Moscow")).strftime("%d.%m.%Y %H:%M")
 
-    msg = interaction.message
-    old = msg.embeds[0]
+        msg = interaction.message
+        old = msg.embeds[0]
 
-    new = discord.Embed(
-        title=old.title,
-        description=old.description,
-        color=discord.Color.green()
-    )
+        new = discord.Embed(
+            title=old.title,
+            description=old.description,
+            color=discord.Color.green()
+        )
 
-    for f in old.fields:
+        for f in old.fields:
 
         # пропускаем служебные поля
-        if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал"}:
+            if f.name in {"✅ Принял", "👥 Количество", "❌ Отказал"}:
             continue
 
         # меняем статус
-        if "Статус" in f.name:
-            new.add_field(
-                name="📊 Статус",
-                value="🟢 Принято",
-                inline=True
-            )
-        else:
-            new.add_field(
-                name=f.name,
-                value=f.value,
-                inline=f.inline
-            )
+            if "Статус" in f.name:
+                new.add_field(
+                    name="📊 Статус",
+                    value="🟢 Принято",
+                    inline=True
+                )
+            else:
+                new.add_field(
+                    name=f.name,
+                    value=f.value,
+                    inline=f.inline
+                )
 
     # кто принял + время
-    new.add_field(
-        name="✅ Принял",
-        value=f"{interaction.user.mention} ({msk_time} МСК)",
-        inline=False
-    )
+        new.add_field(
+            name="✅ Принял",
+            value=f"{interaction.user.mention} ({msk_time} МСК)",
+            inline=False
+        )
 
     # количество
-    new.add_field(
-        name="👥 Количество",
-        value=size,
-        inline=False
-    )
+        new.add_field(
+            name="👥 Количество",
+            value=size,
+            inline=False
+        )
 
-    new.set_footer(text="Используйте кнопки ниже")
+        new.set_footer(text="Используйте кнопки ниже")
 
-    self.lock_if_finished()
+        self.lock_if_finished()
 
-    await msg.edit(embed=new, view=self)
+        await msg.edit(embed=new, view=self)
 
-    await interaction.response.send_message(
-        f"✅ Принято {size}",
-        ephemeral=True
-    )
+        await interaction.response.send_message(
+            f"✅ Принято {size}",     
+             ephemeral=True
+        )
 
     @discord.ui.button(label="✅ Принять", style=discord.ButtonStyle.success, custom_id="req_accept")
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
