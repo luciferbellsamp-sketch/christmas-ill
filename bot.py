@@ -568,15 +568,20 @@ async def strela(
     view = RequestView(author_id=interaction.user.id)
     allowed = discord.AllowedMentions(roles=True, users=True, everyone=False)
 
-    await interaction.response.send_message(content=content, embed=embed, view=view, allowed_mentions=allowed)
-    msg = await interaction.original_response()  # это отправленное ботом сообщение
+    await interaction.response.send_message(
+        content=content,
+        embed=embed,
+        view=view,
+        allowed_mentions=allowed
+    )
 
-try:
-    dt_target = parse_strela_time(vremya)
-    asyncio.create_task(countdown_updater(msg, dt_target))
-except Exception:
-    # если время ввели криво — просто оставим как есть
-    pass
+    msg = await interaction.original_response()  # сообщение бота
+
+    try:
+        dt_target = parse_strela_time(vremya)
+        asyncio.create_task(countdown_updater(msg, dt_target))
+    except Exception as e:
+        print("TIMER START ERROR:", e)
 
 @bot.event
 async def on_ready():
