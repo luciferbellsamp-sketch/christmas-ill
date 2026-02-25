@@ -64,110 +64,121 @@ def format_delta(dt_target: datetime) -> str:
 async def countdown_updater(message: discord.Message, dt_target: datetime):
     while True:
         try:
+            if not message.embeds:
+                return
+
             emb = message.embeds[0]
 
-            # создаём новый embed (не ломаем существующие поля)
-            new = discord.Embed(
-                title=emb.title,
-                description=emb.description,
-                color=emb.color
-            )
+            # Определяем статус из поля "Статус"
+            status_value = ""
+            for f in emb.fields:
+                if "Статус" in f.name:
+                    status_value = (f.value or "").strip()
+                    break
+
+            is_accepted = "Принято" in status_value or "🟢" in status_value
+
+            # Считаем остаток времени
+            tz = ZoneInfo("Europe/Moscow")
+            now = datetime.now(tz)
+            left_sec = int((dt_target - now).total_seconds())
+
+            # Значение таймера в поле
+            if left_sec <= 0:
+                if is_accepted:
+                    timer_text = "✅ Уже началось / прошло"
+                else:
+                    timer_text = "⏳ Время наступило (не принято)"
+            else:
+                # обычный отсчёт (без "✅")
+                days = left_sec // 86400
+                rem = left_sec % 86400
+                hours = rem // 3600
+                rem %= 3600
+                mins = rem // 60
+                if days > 0:
+                    timer_text = f"{days}д {hours:02d}ч {mins:02d}м"
+                else:
+                    timer_text = f"{hours:02d}ч {mins:02d}м"
+
+            # Пересобираем embed: меняем ТОЛЬКО поле таймера
+            new = discord.Embed(title=emb.title, description=emb.description, color=emb.color)
 
             found_timer = False
-
             for f in emb.fields:
-
-                # обновляем только таймер
                 if f.name == "⏳ До стрелы":
-                    new.add_field(
-                        name="⏳ До стрелы",
-                        value=format_delta(dt_target),
-                        inline=False
-                    )
+                    new.add_field(name="⏳ До стрелы", value=timer_text, inline=False)
                     found_timer = True
-
                 else:
-                    new.add_field(
-                        name=f.name,
-                        value=f.value,
-                        inline=f.inline
-                    )
+                    new.add_field(name=f.name, value=f.value, inline=f.inline)
 
             if not found_timer:
-                new.add_field(
-                    name="⏳ До стрелы",
-                    value=format_delta(dt_target),
-                    inline=False
-                )
+                new.add_field(name="⏳ До стрелы", value=timer_text, inline=False)
 
             if emb.footer:
                 new.set_footer(text=emb.footer.text)
 
             await message.edit(embed=new)
 
-            # если стрела началась
-            if "✅ Уже началось" in format_delta(dt_target):
+            # Если время наступило:
+            if left_sec <= 0:
+                # 1) НЕ принято -> ничего не отправляем, просто стоп
+                if not is_accepted:
+                    return
 
-                # получаем данные из embed
-                description = emb.description
+                # 2) Принято -> отправляем reply и удаляем через 7 минут
+                description = emb.description or ""
 
-                author = None
-                enemy_roles = ""
-                biz = None
-
+                # Автор (из поля "Автор")
+                author_val = ""
                 for f in emb.fields:
-
                     if f.name == "Автор":
-                        author = f.value
+                        author_val = f.value or ""
+                        break
 
+                # Кому (из поля "Кому") — там у тебя пинги лидера/зама
+                enemy_roles = ""
+                for f in emb.fields:
                     if f.name == "Кому":
-                        enemy_roles = f.value
+                        enemy_roles = f.value or ""
+                        break
 
-                # достаём бизнес из текста
-                for line in description.split("\n"):
-                    if "Бизнес:" in line:
-                        biz = line.replace("🏢 Бизнес:", "").replace("`", "").strip()
-
-                # достаём фракции
+                # Фракции + бизнес из description
                 tag = "UNKNOWN"
                 protiv = "UNKNOWN"
+                biz = None
 
-                for line in description.split("\n"):
+                m1 = re.search(r"Фракция:\s*\*\*`([^`]+)`\*\*", description)
+                m2 = re.search(r"Против:\s*\*\*`([^`]+)`\*\*", description)
+                m3 = re.search(r"Бизнес:\s*\*\*`([^`]+)`\*\*", description)
 
-                    if "Фракция:" in line:
-                        tag = line.split("`")[1]
+                if m1:
+                    tag = m1.group(1)
+                if m2:
+                    protiv = m2.group(1)
+                if m3:
+                    biz = m3.group(1)
 
-                    if "Против:" in line:
-                        protiv = line.split("`")[1]
-
-                # текст уведомления
                 if biz:
                     notify_text = (
-                        f"🚨 Стрела между **{tag}** и **{protiv}** "
-                        f"за бизнес **{biz}** началась!\n\n"
-                        f"{author}\n"
-                        f"{enemy_roles}"
+                        f"🚨 Стрела между {tag} и {protiv} за бизнес {biz} началась!\n"
+                        f"{author_val}\n{enemy_roles}"
                     )
                 else:
                     notify_text = (
-                        f"🚨 Стрела между **{tag}** и **{protiv}** началась!\n\n"
-                        f"{author}\n"
-                        f"{enemy_roles}"
+                        f"🚨 Стрела между {tag} и {protiv} началась!\n"
+                        f"{author_val}\n{enemy_roles}"
                     )
 
-                # reply-сообщение
+                allowed = discord.AllowedMentions(roles=True, users=True, everyone=False)
+
                 notify_msg = await message.reply(
                     content=notify_text,
-                    allowed_mentions=discord.AllowedMentions(
-                        roles=True,
-                        users=True
-                    ),
+                    allowed_mentions=allowed,
                     mention_author=True
                 )
 
-                # удалить через 7 минут
                 await asyncio.sleep(420)
-
                 try:
                     await notify_msg.delete()
                 except:
