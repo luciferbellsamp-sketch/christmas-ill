@@ -50,60 +50,32 @@ def format_request_embed(
     accepted_by: discord.Member | None = None,
     size: str | None = None,
 ) -> discord.Embed:
-
-    tag = tag.upper()
-    protiv = protiv.upper()
-
-    biz_text = biz if biz else "НЕ УКАЗАН"
-
-    description = (
-        "╔═══ ⚔️ НОВАЯ СТРЕЛА ═══╗\n"
-        f"║ 🏴 Фракция : {tag}\n"
-        f"║ 🎯 Против  : {protiv}\n"
-        f"║ 🏢 Бизнес  : {biz_text}\n"
-        f"║ 🕒 Время   : {vremya}\n"
-        f"║ 📍 Локация : {lokaciya}\n"
-        f"║ 🔫 Оружие  : {oruzhie}\n"
-        "╚══════════════════════╝"
-    )
-
-    embed = discord.Embed(
+    e = discord.Embed(
         title="⚔️ Забив стрелы",
-        description=description,
-        color=discord.Color.orange()
+        color=discord.Color.orange() if accepted_by is None else discord.Color.green(),
+        description=""
     )
 
-    embed.add_field(
-        name="👤 Автор",
-        value=author.mention,
-        inline=True
-    )
+    # Верхняя часть “как в твоём окне”
+    lines = []
+    lines.append(f"**Забиваю стрелу {tag.upper()} против {protiv}**")
+    if biz:
+        lines.append(f"**Война за бизнес:** {biz}")
+    lines.append(f"**Время проведения:** {vremya}")
+    lines.append(f"**Локация:** {lokaciya}")
+    lines.append(f"**Оружие:** {oruzhie}")
+    e.description = "\n".join(lines)
 
-    embed.add_field(
-        name="📊 Статус",
-        value=status,
-        inline=True
-    )
+    e.add_field(name="Автор", value=author.mention, inline=True)
+    e.add_field(name="Статус", value=status, inline=True)
 
     if accepted_by:
-        embed.add_field(
-            name="✅ Принял",
-            value=accepted_by.mention,
-            inline=False
-        )
-
+        e.add_field(name="✅ Принял", value=accepted_by.mention, inline=False)
     if size:
-        embed.add_field(
-            name="👥 Количество",
-            value=size,
-            inline=False
-        )
+        e.add_field(name="👥 Количество", value=size, inline=False)
 
-    embed.set_footer(
-        text="Используйте кнопки ниже"
-    )
-
-    return embed
+    e.set_footer(text="Кнопки ниже: принять / отказать / откат")
+    return e
 
 # ====== MODAL ДЛЯ ВВОДА КОЛИЧЕСТВА ======
 class SizeModal(discord.ui.Modal, title="Принять стрелу: количество"):
