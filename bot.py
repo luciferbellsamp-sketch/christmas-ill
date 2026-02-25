@@ -108,11 +108,16 @@ async def countdown_updater(message: discord.Message, dt_target: datetime):
 
             found_timer = False
             for f in emb.fields:
-                if f.name == "⏳ До стрелы":
-                    new.add_field(name="⏳ До стрелы", value=timer_text, inline=False)
-                    found_timer = True
-                else:
-                    new.add_field(name=f.name, value=f.value, inline=f.inline)
+
+    # скрываем служебное поле времени
+                 if f.name == "__strela_time__":
+                     continue
+
+                 if f.name == "⏳ До стрелы":
+                     new.add_field(name="⏳ До стрелы", value=timer_text, inline=False)
+                     found_timer = True
+                 else:
+                     new.add_field(name=f.name, value=f.value, inline=f.inline)
 
             if not found_timer:
                 new.add_field(name="⏳ До стрелы", value=timer_text, inline=False)
