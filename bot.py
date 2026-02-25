@@ -62,41 +62,123 @@ def format_delta(dt_target: datetime) -> str:
 
 
 async def countdown_updater(message: discord.Message, dt_target: datetime):
-    """
-    Каждую минуту обновляет ТОЛЬКО поле '⏳ До стрелы' в эмбеде.
-    Не трогает Статус/Принял/Отказал (чтобы не было отката).
-    """
     while True:
         try:
+            emb = message.embeds[0]
+
+            # создаём новый embed (не ломаем существующие поля)
+            new = discord.Embed(
+                title=emb.title,
+                description=emb.description,
+                color=emb.color
+            )
+
+            found_timer = False
+
+            for f in emb.fields:
+
+                # обновляем только таймер
+                if f.name == "⏳ До стрелы":
+                    new.add_field(
+                        name="⏳ До стрелы",
+                        value=format_delta(dt_target),
+                        inline=False
+                    )
+                    found_timer = True
+
+                else:
+                    new.add_field(
+                        name=f.name,
+                        value=f.value,
+                        inline=f.inline
+                    )
+
+            if not found_timer:
+                new.add_field(
+                    name="⏳ До стрелы",
+                    value=format_delta(dt_target),
+                    inline=False
+                )
+
+            if emb.footer:
+                new.set_footer(text=emb.footer.text)
+
+            await message.edit(embed=new)
+
+            # если стрела началась
+            if "✅ Уже началось" in format_delta(dt_target):
+
+                # получаем данные из embed
+                description = emb.description
+
+                author = None
+                enemy_roles = ""
+                biz = None
+
+                for f in emb.fields:
+
+                    if f.name == "Автор":
+                        author = f.value
+
+                    if f.name == "Кому":
+                        enemy_roles = f.value
+
+                # достаём бизнес из текста
+                for line in description.split("\n"):
+                    if "Бизнес:" in line:
+                        biz = line.replace("🏢 Бизнес:", "").replace("`", "").strip()
+
+                # достаём фракции
+                tag = "UNKNOWN"
+                protiv = "UNKNOWN"
+
+                for line in description.split("\n"):
+
+                    if "Фракция:" in line:
+                        tag = line.split("`")[1]
+
+                    if "Против:" in line:
+                        protiv = line.split("`")[1]
+
+                # текст уведомления
+                if biz:
+                    notify_text = (
+                        f"🚨 Стрела между **{tag}** и **{protiv}** "
+                        f"за бизнес **{biz}** началась!\n\n"
+                        f"{author}\n"
+                        f"{enemy_roles}"
+                    )
+                else:
+                    notify_text = (
+                        f"🚨 Стрела между **{tag}** и **{protiv}** началась!\n\n"
+                        f"{author}\n"
+                        f"{enemy_roles}"
+                    )
+
+                # reply-сообщение
+                notify_msg = await message.reply(
+                    content=notify_text,
+                    allowed_mentions=discord.AllowedMentions(
+                        roles=True,
+                        users=True
+                    ),
+                    mention_author=True
+                )
+
+                # удалить через 7 минут
+                await asyncio.sleep(420)
+
+                try:
+                    await notify_msg.delete()
+                except:
+                    pass
+
+                return
+
             await asyncio.sleep(60)
 
-            # Берем актуальное сообщение (после принятия/отказа/отката)
-            msg = await message.channel.fetch_message(message.id)
-            if not msg.embeds:
-                return
-
-            embed = msg.embeds[0]
-            value = format_delta(dt_target)
-
-            # обновляем только поле таймера
-            timer_index = None
-            for i, f in enumerate(embed.fields):
-                if f.name in {"⏳ До стрелы", "⌛ До стрелы", "⏱ До стрелы"} or f.name.startswith("⏳ До стрелы"):
-                    timer_index = i
-                    break
-
-            if timer_index is None:
-                embed.add_field(name="⏳ До стрелы", value=value, inline=False)
-            else:
-                embed.set_field_at(timer_index, name="⏳ До стрелы", value=value, inline=False)
-
-            await msg.edit(embed=embed)
-
-            if value.startswith("✅"):
-                return
-
         except Exception as e:
-            print("TIMER ERROR:", e)
+            print("COUNTDOWN ERROR:", e)
             return
 
 
