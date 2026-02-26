@@ -196,8 +196,9 @@ async def countdown_updater(message: discord.Message, dt_target: datetime):
 
 
 intents = discord.Intents.default()
-bot = commands.Bot(command_prefix="!", intents=intents)
+intents.members = True  # ✅ нужно, чтобы видеть участников по ролям
 
+bot = commands.Bot(command_prefix="!", intents=intents)
 # ====== НАСТРОЙКИ ПИНГОВ ПО ТЕГАМ ======
 ALLOWED_CHANNELS = [
     1468386694175789188,  # канал 1
@@ -245,6 +246,62 @@ def strela_already_started_from_embed(emb: discord.Embed) -> bool:
 
     now = datetime.now(ZoneInfo("Europe/Moscow"))
     return now >= dt_target
+
+async def dm_strela_to_target_leaders(
+    interaction: discord.Interaction,
+    protiv_tag: str,
+    strela_message: discord.Message,
+):
+    guild = interaction.guild
+    if guild is None:
+        return
+
+    key = normalize_tag(protiv_tag)
+    roles_cfg = FACTION_PINGS.get(key)
+    if not roles_cfg:
+        return  # неизвестный тег
+
+    # Прогружаем участников (иначе role.members может быть пустым)
+    try:
+        await guild.chunk()
+    except Exception:
+        pass
+
+    role_ids = [roles_cfg["leader"], roles_cfg["deputy"]]
+    recipients = set()
+
+    for rid in role_ids:
+        role = guild.get_role(rid)
+        if role:
+            for m in role.members:
+                if not m.bot:
+                    recipients.add(m)
+
+    if not recipients:
+        return
+
+    dm_embed = discord.Embed(
+        title="🚨 Твоей организации забили стрелу",
+        description=(
+            "Привет! Твоей организации забили стрелу.\n\n"
+            "Вся информация и принятие тут:"
+        ),
+        color=discord.Color.orange()
+    )
+    dm_embed.add_field(
+        name="🔗 Ссылка на сообщение стрелы",
+        value=strela_message.jump_url,
+        inline=False
+    )
+
+    for member in recipients:
+        try:
+            await member.send(embed=dm_embed)
+        except discord.Forbidden:
+            # ЛС закрыты
+            pass
+        except Exception:
+            pass
 
 
 def format_request_embed(
@@ -538,6 +595,12 @@ async def strela(
     )
 
     msg = await interaction.original_response()
+
+        # ✅ Уведомление в ЛС лидеру/депути той фракции, кому забили (protiv)
+    try:
+        await dm_strela_to_target_leaders(interaction, protiv, msg)
+    except Exception as e:
+        print("DM NOTIFY ERROR:", e)
 
     try:
         dt_target = parse_strela_time(vremya)
